@@ -325,6 +325,18 @@ textarea {
   transform: translateY(-1px);
 }
 
+.btn-success {
+  background: #198754;
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-success:hover {
+  background: #157347;
+  transform: translateY(-1px);
+}
+
 .btn-sm {
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-xs);
@@ -381,13 +393,38 @@ textarea {
 }
 
 .form-input.error,
-.form-select.error {
-  border-color: var(--error-500);
+.form-select.error,
+.form-input.input-error,
+.form-select.input-error,
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
 }
 
 .form-error {
   font-size: var(--font-size-xs);
   color: var(--error-500);
+}
+
+/* ===== Alerts ===== */
+.alert {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
 }
 
 .form-actions {
@@ -1457,6 +1494,64 @@ textarea {
 :root.dark .badge-count {
   background: var(--neutral-700);
   color: var(--neutral-400);
+}
+
+/* ===== Tooltip Icon ===== */
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #6366f1;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tooltip-icon:hover {
+  background-color: #4f46e5;
+  transform: scale(1.1);
+}
+
+/* ===== Tooltip Styles ===== */
+.tooltip-info {
+  background: var(--card-bg, white);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--neutral-800);
+  position: relative;
+  z-index: 100;
+}
+
+.tooltip-info strong {
+  color: var(--neutral-900);
+  font-weight: 600;
+}
+
+/* Dark mode tooltip styles */
+:root.dark .tooltip-info {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+:root.dark .tooltip-info strong {
+  color: #ffffff !important;
+}
+
+:root.dark .tooltip-info p {
+  color: #f1f5f9 !important;
 }
 
 /* ===== Custom Scrollbar Styles ===== */

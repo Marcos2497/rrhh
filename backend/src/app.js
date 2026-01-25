@@ -1,19 +1,24 @@
 const express = require('express');
 const cors = require('cors');
 const empleadoRoutes = require('./routes/empleadoRoutes');
-const nacionalidadRoutes = require('./routes/nacionalidadRoutes');
 const empresaRoutes = require('./routes/empresaRoutes');
+const contratoRoutes = require('./routes/contratoRoutes');
+const registroSaludRoutes = require('./routes/registroSaludRoutes');
+const evaluacionRoutes = require('./routes/evaluacionRoutes');
 
 const app = express();
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Rutas
 app.use('/api/empleados', empleadoRoutes);
-app.use('/api/nacionalidades', nacionalidadRoutes);
 app.use('/api/empresas', empresaRoutes);
+app.use('/api/contratos', contratoRoutes);
+app.use('/api/registros-salud', registroSaludRoutes);
+app.use('/api/evaluaciones', evaluacionRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
@@ -27,3 +32,4 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+

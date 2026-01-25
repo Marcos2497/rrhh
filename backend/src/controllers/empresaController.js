@@ -1,11 +1,40 @@
-const { Empresa, Area, Departamento, Puesto } = require('../models');
+const { Empresa, Area, Departamento, Puesto, Contrato } = require('../models');
 const { Op } = require('sequelize');
+
+const includeStructure = [{
+    model: Area,
+    as: 'areas',
+    include: [{
+        model: Departamento,
+        as: 'departamentos',
+        include: [{
+            model: Puesto,
+            as: 'puestos',
+            include: [{
+                model: Contrato,
+                as: 'contratos',
+                through: { attributes: [] },
+                where: { activo: true },
+                required: false
+            }]
+        }]
+    }]
+}];
 
 // Obtener todas las empresas con búsqueda y paginación
 const getAll = async (req, res) => {
     try {
-        const { search, page = 1, limit = 10 } = req.query;
+        const { search, page = 1, limit = 10, activo } = req.query;
         const where = {};
+
+        // Por defecto solo mostrar activas
+        if (activo === 'false') {
+            where.activo = false;
+        } else if (activo === 'all') {
+            // No filtrar
+        } else {
+            where.activo = true;
+        }
 
         if (search) {
             where.nombre = { [Op.like]: `%${search}%` };
@@ -38,18 +67,7 @@ const getAll = async (req, res) => {
 const getById = async (req, res) => {
     try {
         const empresa = await Empresa.findByPk(req.params.id, {
-            include: [{
-                model: Area,
-                as: 'areas',
-                include: [{
-                    model: Departamento,
-                    as: 'departamentos',
-                    include: [{
-                        model: Puesto,
-                        as: 'puestos'
-                    }]
-                }]
-            }]
+            include: includeStructure
         });
 
         if (!empresa) {
@@ -62,7 +80,7 @@ const getById = async (req, res) => {
     }
 };
 
-// Crear empresa con estructura anidada (Areas -> Departamentos -> Puestos)
+// Crear empresa con estructura anidada
 const create = async (req, res) => {
     try {
         const { nombre, email, telefono, industria, direccion, areas } = req.body;
@@ -73,20 +91,9 @@ const create = async (req, res) => {
             telefono,
             industria,
             direccion,
-            areas // Sequelize creará automáticamente la estructura anidada si se pasa el include adecuado
+            areas
         }, {
-            include: [{
-                model: Area,
-                as: 'areas',
-                include: [{
-                    model: Departamento,
-                    as: 'departamentos',
-                    include: [{
-                        model: Puesto,
-                        as: 'puestos'
-                    }]
-                }]
-            }]
+            include: includeStructure
         });
 
         res.status(201).json(nuevaEmpresa);
@@ -95,27 +102,61 @@ const create = async (req, res) => {
             const messages = error.errors.map(e => e.message);
             return res.status(400).json({ error: messages.join(', ') });
         }
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: 'El email ya está registrado' });
+        }
         res.status(500).json({ error: error.message });
     }
 };
 
-// Eliminar empresa
+// Eliminar empresa (eliminación lógica)
 const remove = async (req, res) => {
     try {
-        const empresa = await Empresa.findByPk(req.params.id);
+        const { Contrato, ContratoPuesto } = require('../models');
+        const empresa = await Empresa.findByPk(req.params.id, {
+            include: includeStructure
+        });
 
         if (!empresa) {
             return res.status(404).json({ error: 'Empresa no encontrada' });
         }
 
-        await empresa.destroy();
-        res.json({ message: 'Empresa eliminada correctamente' });
+        // Obtener todos los puestos de esta empresa
+        const puestoIds = [];
+        empresa.areas?.forEach(area => {
+            area.departamentos?.forEach(depto => {
+                depto.puestos?.forEach(puesto => {
+                    puestoIds.push(puesto.id);
+                });
+            });
+        });
+
+        // Verificar si hay contratos activos asociados a los puestos de esta empresa
+        if (puestoIds.length > 0) {
+            const contratosActivos = await ContratoPuesto.count({
+                where: { puestoId: puestoIds },
+                include: [{
+                    model: Contrato,
+                    as: 'contrato',
+                    where: { activo: true }
+                }]
+            });
+
+            if (contratosActivos > 0) {
+                return res.status(400).json({
+                    error: `No se puede desactivar la empresa porque tiene ${contratosActivos} contrato(s) activo(s). Primero desactive los contratos.`
+                });
+            }
+        }
+
+        await empresa.update({ activo: false });
+        res.json({ message: 'Empresa desactivada correctamente' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
 
-// Eliminar empresas en lote
+// Eliminar empresas en lote (eliminación lógica)
 const removeBulk = async (req, res) => {
     try {
         const { ids } = req.body;
@@ -124,11 +165,33 @@ const removeBulk = async (req, res) => {
             return res.status(400).json({ error: 'Se requiere un array de IDs' });
         }
 
-        const deleted = await Empresa.destroy({
-            where: { id: { [Op.in]: ids } },
+        await Empresa.update(
+            { activo: false },
+            { where: { id: { [Op.in]: ids } } }
+        );
+
+        res.json({ message: `${ids.length} empresa(s) desactivada(s) correctamente` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Reactivar empresa
+const reactivate = async (req, res) => {
+    try {
+        const empresa = await Empresa.findByPk(req.params.id);
+
+        if (!empresa) {
+            return res.status(404).json({ error: 'Empresa no encontrada' });
+        }
+
+        await empresa.update({ activo: true });
+
+        const empresaReactivada = await Empresa.findByPk(req.params.id, {
+            include: includeStructure
         });
 
-        res.json({ message: `${deleted} empresa(s) eliminada(s) correctamente` });
+        res.json(empresaReactivada);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -145,55 +208,12 @@ const update = async (req, res) => {
             return res.status(404).json({ error: 'Empresa no encontrada' });
         }
 
-        // Actualizar datos básicos de la empresa
         await empresa.update({ nombre, email, telefono, industria, direccion });
 
-        // Si se envían áreas, eliminar las existentes y crear las nuevas
         if (areas !== undefined) {
-            // Obtener IDs de áreas existentes
-            const areasExistentes = await Area.findAll({ where: { empresaId: id } });
-            const areaIds = areasExistentes.map(a => a.id);
-
-            // Obtener IDs de departamentos pertenecientes a estas áreas
-            const deptosExistentes = await Departamento.findAll({ where: { areaId: areaIds } });
-            const deptoIds = deptosExistentes.map(d => d.id);
-
-            // Eliminar en orden correcto: puestos -> departamentos -> áreas
-            if (deptoIds.length > 0) {
-                await Puesto.destroy({ where: { departamentoId: deptoIds } });
-            }
-            if (areaIds.length > 0) {
-                await Departamento.destroy({ where: { areaId: areaIds } });
-                await Area.destroy({ where: { empresaId: id } });
-            }
-
-            // Crear nuevas áreas con estructura anidada
-            if (areas && areas.length > 0) {
-                for (const areaData of areas) {
-                    const { departamentos, ...areaRest } = areaData;
-                    const newArea = await Area.create({ ...areaRest, empresaId: id });
-
-                    if (departamentos && departamentos.length > 0) {
-                        for (const deptoData of departamentos) {
-                            const { puestos, ...deptoRest } = deptoData;
-                            const newDepto = await Departamento.create({ ...deptoRest, areaId: newArea.id });
-
-                            if (puestos && puestos.length > 0) {
-                                for (const puestoData of puestos) {
-                                    await Puesto.create({ ...puestoData, departamentoId: newDepto.id });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Obtener empresa actualizada con estructura completa
-        const empresaActualizada = await Empresa.findByPk(id, {
-            include: [{
-                model: Area,
-                as: 'areas',
+            // Get existing structure
+            const areasExistentes = await Area.findAll({
+                where: { empresaId: id },
                 include: [{
                     model: Departamento,
                     as: 'departamentos',
@@ -202,7 +222,161 @@ const update = async (req, res) => {
                         as: 'puestos'
                     }]
                 }]
-            }]
+            });
+
+            // Track IDs to keep
+            const areasToKeep = new Set();
+            const deptosToKeep = new Set();
+            const puestosToKeep = new Set();
+
+            if (areas && areas.length > 0) {
+                for (const areaData of areas) {
+                    const { departamentos, id: areaId, ...areaRest } = areaData;
+                    let area;
+
+                    // Update existing or create new area
+                    if (areaId) {
+                        area = await Area.findByPk(areaId);
+                        if (area && area.empresaId === parseInt(id)) {
+                            await area.update(areaRest);
+                            areasToKeep.add(areaId);
+                        } else {
+                            area = await Area.create({ ...areaRest, empresaId: id });
+                            areasToKeep.add(area.id);
+                        }
+                    } else {
+                        area = await Area.create({ ...areaRest, empresaId: id });
+                        areasToKeep.add(area.id);
+                    }
+
+                    if (departamentos && departamentos.length > 0) {
+                        for (const deptoData of departamentos) {
+                            const { puestos, id: deptoId, ...deptoRest } = deptoData;
+                            let depto;
+
+                            // Update existing or create new departamento
+                            if (deptoId) {
+                                depto = await Departamento.findByPk(deptoId);
+                                if (depto && depto.areaId === area.id) {
+                                    await depto.update(deptoRest);
+                                    deptosToKeep.add(deptoId);
+                                } else {
+                                    depto = await Departamento.create({ ...deptoRest, areaId: area.id });
+                                    deptosToKeep.add(depto.id);
+                                }
+                            } else {
+                                depto = await Departamento.create({ ...deptoRest, areaId: area.id });
+                                deptosToKeep.add(depto.id);
+                            }
+
+                            if (puestos && puestos.length > 0) {
+                                for (const puestoData of puestos) {
+                                    const { id: puestoId, ...puestoRest } = puestoData;
+
+                                    // Update existing or create new puesto
+                                    if (puestoId) {
+                                        const puesto = await Puesto.findByPk(puestoId);
+                                        if (puesto && puesto.departamentoId === depto.id) {
+                                            await puesto.update(puestoRest);
+                                            puestosToKeep.add(puestoId);
+                                        } else {
+                                            const newPuesto = await Puesto.create({ ...puestoRest, departamentoId: depto.id });
+                                            puestosToKeep.add(newPuesto.id);
+                                        }
+                                    } else {
+                                        const newPuesto = await Puesto.create({ ...puestoRest, departamentoId: depto.id });
+                                        puestosToKeep.add(newPuesto.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Validate and delete orphaned items (those not in the new structure)
+            // First, check if any items to be deleted are linked to active contracts
+            const { ContratoPuesto, Contrato } = require('../models');
+            const errorsLinked = [];
+
+            for (const areaExistente of areasExistentes) {
+                const areaBeingDeleted = !areasToKeep.has(areaExistente.id);
+
+                for (const deptoExistente of areaExistente.departamentos || []) {
+                    const deptoBeingDeleted = !deptosToKeep.has(deptoExistente.id) || areaBeingDeleted;
+
+                    for (const puestoExistente of deptoExistente.puestos || []) {
+                        const puestoBeingDeleted = !puestosToKeep.has(puestoExistente.id) || deptoBeingDeleted;
+
+                        if (puestoBeingDeleted) {
+                            // Check if puesto is linked to any active contract
+                            const linkedContracts = await ContratoPuesto.count({
+                                where: { puestoId: puestoExistente.id },
+                                include: [{
+                                    model: Contrato,
+                                    as: 'contrato',
+                                    where: { activo: true }
+                                }]
+                            });
+
+                            if (linkedContracts > 0) {
+                                // Create contextual error message
+                                if (areaBeingDeleted) {
+                                    errorsLinked.push(`El área "${areaExistente.nombre}" no puede eliminarse porque contiene el puesto "${puestoExistente.nombre}" que tiene ${linkedContracts} contrato(s) activo(s)`);
+                                } else if (deptoBeingDeleted) {
+                                    errorsLinked.push(`El departamento "${deptoExistente.nombre}" no puede eliminarse porque contiene el puesto "${puestoExistente.nombre}" que tiene ${linkedContracts} contrato(s) activo(s)`);
+                                } else {
+                                    errorsLinked.push(`El puesto "${puestoExistente.nombre}" no puede eliminarse porque tiene ${linkedContracts} contrato(s) activo(s)`);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If there are any linked items, return error
+            if (errorsLinked.length > 0) {
+                return res.status(400).json({
+                    error: errorsLinked.join('. ')
+                });
+            }
+
+            // Now proceed to delete items that are not linked
+            for (const areaExistente of areasExistentes) {
+                for (const deptoExistente of areaExistente.departamentos || []) {
+                    for (const puestoExistente of deptoExistente.puestos || []) {
+                        if (!puestosToKeep.has(puestoExistente.id)) {
+                            await puestoExistente.destroy();
+                        }
+                    }
+
+                    if (!deptosToKeep.has(deptoExistente.id)) {
+                        // Check if departamento has any puestos still
+                        const remainingPuestos = await Puesto.count({
+                            where: { departamentoId: deptoExistente.id }
+                        });
+
+                        if (remainingPuestos === 0) {
+                            await deptoExistente.destroy();
+                        }
+                    }
+                }
+
+                if (!areasToKeep.has(areaExistente.id)) {
+                    // Check if area has any departamentos still
+                    const remainingDeptos = await Departamento.count({
+                        where: { areaId: areaExistente.id }
+                    });
+
+                    if (remainingDeptos === 0) {
+                        await areaExistente.destroy();
+                    }
+                }
+            }
+        }
+
+        const empresaActualizada = await Empresa.findByPk(id, {
+            include: includeStructure
         });
 
         res.json(empresaActualizada);
@@ -211,6 +385,84 @@ const update = async (req, res) => {
             const messages = error.errors.map(e => e.message);
             return res.status(400).json({ error: messages.join(', ') });
         }
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: 'El email ya está registrado' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Check if an area, departamento, or puesto can be deleted (has no active contracts)
+const checkCanDelete = async (req, res) => {
+    try {
+        const { type, id } = req.params; // type: 'area', 'departamento', 'puesto'
+        const { ContratoPuesto, Contrato } = require('../models');
+
+        let puestosToCheck = [];
+        let contextName = '';
+
+        if (type === 'puesto') {
+            const puesto = await Puesto.findByPk(id);
+            if (!puesto) {
+                return res.json({ canDelete: true });
+            }
+            puestosToCheck = [puesto];
+            contextName = `El puesto "${puesto.nombre}"`;
+        } else if (type === 'departamento') {
+            const depto = await Departamento.findByPk(id, {
+                include: [{ model: Puesto, as: 'puestos' }]
+            });
+            if (!depto) {
+                return res.json({ canDelete: true });
+            }
+            puestosToCheck = depto.puestos || [];
+            contextName = `El departamento "${depto.nombre}"`;
+        } else if (type === 'area') {
+            const area = await Area.findByPk(id, {
+                include: [{
+                    model: Departamento,
+                    as: 'departamentos',
+                    include: [{ model: Puesto, as: 'puestos' }]
+                }]
+            });
+            if (!area) {
+                return res.json({ canDelete: true });
+            }
+            puestosToCheck = (area.departamentos || []).flatMap(d => d.puestos || []);
+            contextName = `El área "${area.nombre}"`;
+        } else {
+            return res.status(400).json({ error: 'Tipo inválido' });
+        }
+
+        // Check each puesto for active contracts
+        const linkedPuestos = [];
+        for (const puesto of puestosToCheck) {
+            const count = await ContratoPuesto.count({
+                where: { puestoId: puesto.id },
+                include: [{
+                    model: Contrato,
+                    as: 'contrato',
+                    where: { activo: true }
+                }]
+            });
+            if (count > 0) {
+                linkedPuestos.push({ nombre: puesto.nombre, contratos: count });
+            }
+        }
+
+        if (linkedPuestos.length > 0) {
+            let message;
+            if (type === 'puesto') {
+                message = `${contextName} no puede eliminarse porque tiene ${linkedPuestos[0].contratos} contrato(s) activo(s)`;
+            } else {
+                const puestosStr = linkedPuestos.map(p => `"${p.nombre}" (${p.contratos} contrato(s))`).join(', ');
+                message = `${contextName} no puede eliminarse porque contiene puestos con contratos activos: ${puestosStr}`;
+            }
+            return res.json({ canDelete: false, message });
+        }
+
+        res.json({ canDelete: true });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -222,4 +474,6 @@ module.exports = {
     update,
     remove,
     removeBulk,
+    reactivate,
+    checkCanDelete,
 };

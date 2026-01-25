@@ -17,10 +17,17 @@ const Area = sequelize.define('Area', {
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
+        validate: {
+            len: { args: [0, 500], msg: 'La descripción del área no puede exceder 500 caracteres' },
+        },
     },
     empresaId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        references: {
+            model: 'empresas',
+            key: 'id',
+        },
     },
 }, {
     tableName: 'areas',

@@ -17,10 +17,17 @@ const Departamento = sequelize.define('Departamento', {
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
+        validate: {
+            len: { args: [0, 500], msg: 'La descripción del departamento no puede exceder 500 caracteres' },
+        },
     },
     areaId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        references: {
+            model: 'areas',
+            key: 'id',
+        },
     },
 }, {
     tableName: 'departamentos',

@@ -1,0 +1,789 @@
+import { useState, useEffect } from 'react';
+import Select from 'react-select';
+import StepTracker from './StepTracker';
+import {
+    createContrato,
+    updateContrato,
+    getEmpleados,
+    getEmpresas,
+    getEmpresaById,
+    getPuestosConContrato
+} from '../services/api';
+
+// Tipos de contrato agrupados por categoría
+const TIPOS_CONTRATO = {
+    'Relación de Dependencia (Ley 20.744 – LCT)': [
+        { value: 'tiempo_indeterminado', label: 'Contrato por Tiempo Indeterminado (Efectivo)' },
+        { value: 'periodo_prueba', label: 'Período de Prueba (Art. 92 bis)' },
+        { value: 'plazo_fijo', label: 'Contrato a Plazo Fijo' },
+        { value: 'eventual', label: 'Contrato Eventual' },
+        { value: 'teletrabajo', label: 'Contrato de Teletrabajo (Ley 27.555)' },
+    ],
+    'No Laborales / Extracontractuales (Freelancers / Outsourcing)': [
+        { value: 'locacion_servicios', label: 'Locación de Servicios (Contractor / Freelancer)' },
+        { value: 'monotributista', label: 'Monotributista' },
+        { value: 'responsable_inscripto', label: 'Responsable Inscripto (Autónomo)' },
+        { value: 'honorarios', label: 'Honorarios' },
+        { value: 'contrato_obra', label: 'Contrato de Obra' },
+    ],
+    'Formativos (Educativos)': [
+        { value: 'pasantia_educativa', label: 'Pasantía Educativa (Ley 26.427)' },
+        { value: 'beca', label: 'Beca' },
+        { value: 'ad_honorem', label: 'Ad honorem' },
+    ],
+};
+
+// Tooltip content for Step 1 - Puestos
+const TOOLTIP_PUESTOS = `**Reglas de asignación:**
+• Un empleado puede tener varios puestos en un mismo contrato solo si pertenecen a la misma empresa.
+• Si los puestos son de empresas distintas, deben crearse contratos separados.
+• No se permite crear un contrato para un puesto que el empleado ya tiene asignado en otro contrato activo.
+
+**Categoría superior:** Según la Ley de Contrato de Trabajo, si el empleado realiza dos tareas de distinta jerarquía, se le debe remunerar según la de mayor categoría o proporcionalmente al tiempo dedicado a cada una.`;
+
+// Tooltip content for Step 2 - Tipos de Contrato
+const TOOLTIP_TIPOS_CONTRATO = `**Relación de Dependencia**
+• La empresa paga cargas sociales (jubilación, obra social, ART).
+• El estándar es el contrato por tiempo indeterminado.
+• El período de prueba comprende los primeros 3 meses (Art. 92 bis).
+• El plazo fijo tiene fecha de fin y requiere preaviso especial.
+• El contrato eventual cubre necesidades extraordinarias.
+• El teletrabajo debe registrarse según la ley vigente.
+
+**No Laborales / Extracontractuales**
+• Incluye locación de servicios, monotributistas, responsables inscriptos, honorarios y contrato de obra.
+• No tienen recibo de sueldo ni vacaciones pagas automáticas.
+• Requieren constancia de inscripción y facturación mensual.
+
+**Formativos**
+• Incluye pasantía educativa, beca y ad honorem.
+• No son empleados ni freelancers.
+• La pasantía tiene duración máxima y asignación estímulo.`;
+
+// Error component
+const FieldError = ({ message }) => {
+    if (!message) return null;
+    return <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{message}</span>;
+};
+
+// Custom styles for react-select with solid colors for dark/light mode
+const getSelectStyles = (isDark) => ({
+    control: (base, state) => ({
+        ...base,
+        backgroundColor: isDark ? '#1e293b' : 'white',
+        borderColor: state.isFocused ? '#0d9488' : (isDark ? '#334155' : '#e2e8f0'),
+        boxShadow: state.isFocused ? '0 0 0 2px rgba(13, 148, 136, 0.2)' : 'none',
+        '&:hover': { borderColor: '#0d9488' },
+        minHeight: '42px',
+        borderRadius: '0.5rem',
+    }),
+    menu: (base) => ({
+        ...base,
+        backgroundColor: isDark ? '#1e293b' : 'white',
+        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+        borderRadius: '0.5rem',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: 1000,
+    }),
+    option: (base, state) => ({
+        ...base,
+        backgroundColor: state.isSelected ? '#0d9488' : state.isFocused ? (isDark ? '#334155' : '#f1f5f9') : 'transparent',
+        color: state.isSelected ? 'white' : (isDark ? '#e2e8f0' : '#1e293b'),
+        cursor: 'pointer',
+        '&:active': { backgroundColor: '#0d9488' },
+    }),
+    multiValue: (base) => ({
+        ...base,
+        backgroundColor: '#0d9488',
+        borderRadius: '0.375rem',
+    }),
+    multiValueLabel: (base) => ({
+        ...base,
+        color: 'white',
+        padding: '4px 8px',
+    }),
+    multiValueRemove: (base) => ({
+        ...base,
+        color: 'white',
+        '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' },
+    }),
+    input: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
+    singleValue: (base) => ({ ...base, color: isDark ? '#e2e8f0' : '#1e293b' }),
+    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
+});
+
+const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleadoPreseleccionado = null }) => {
+    const isEditMode = !!contratoToEdit;
+    const [currentStep, setCurrentStep] = useState(1);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [touched, setTouched] = useState({});
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [isEditDataLoaded, setIsEditDataLoaded] = useState(false);
+    const [showTooltipPuestos, setShowTooltipPuestos] = useState(false);
+    const [showTooltipTipos, setShowTooltipTipos] = useState(false);
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+    // Detect theme changes
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    // Data
+    const [empleados, setEmpleados] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
+    const [puestosDisponibles, setPuestosDisponibles] = useState([]);
+    const [puestosConContrato, setPuestosConContrato] = useState(new Map()); // Map<puestoId, Map<empleadoId, empleadoName>>
+
+    // Step 1: Empleados y Puestos
+    const [selectedEmpleados, setSelectedEmpleados] = useState([]);
+    const [selectedPuestos, setSelectedPuestos] = useState([]);
+    const [selectedEmpresa, setSelectedEmpresa] = useState(null);
+
+    // Step 2: Tipo de Contrato
+    const [tipoContrato, setTipoContrato] = useState('');
+
+    // Step 3: Datos del Contrato
+    const [formData, setFormData] = useState({
+        fechaInicio: '',
+        fechaFin: '',
+        horario: '',
+        salario: '',
+        compensacion: '',
+    });
+
+    const steps = [
+        { number: 1, title: 'Empleado y Puestos' },
+        { number: 2, title: 'Tipo de Contrato' },
+        { number: 3, title: 'Datos del Contrato' },
+    ];
+
+    // Load initial data
+    useEffect(() => {
+        loadInitialData();
+    }, []);
+
+    // Preseleccionar empleado
+    useEffect(() => {
+        if (empleadoPreseleccionado && !isEditMode) {
+            const option = {
+                value: empleadoPreseleccionado.id,
+                label: `${empleadoPreseleccionado.apellido}, ${empleadoPreseleccionado.nombre} - ${empleadoPreseleccionado.numeroDocumento}`,
+                empleado: empleadoPreseleccionado,
+            };
+            setSelectedEmpleados([option]);
+        }
+    }, [empleadoPreseleccionado, isEditMode]);
+
+    // Load edit data
+    useEffect(() => {
+        if (contratoToEdit) {
+            // Mark that we are loading edit data to prevent puestos reset
+            setIsEditDataLoaded(true);
+
+            if (contratoToEdit.empleado) {
+                setSelectedEmpleados([{
+                    value: contratoToEdit.empleado.id,
+                    label: `${contratoToEdit.empleado.apellido}, ${contratoToEdit.empleado.nombre} - ${contratoToEdit.empleado.numeroDocumento}`,
+                    empleado: contratoToEdit.empleado,
+                }]);
+            }
+            if (contratoToEdit.puestos && contratoToEdit.puestos.length > 0) {
+                const puestoOptions = contratoToEdit.puestos.map(p => ({
+                    value: p.id,
+                    label: `${p.nombre}${p.departamento ? ` (${p.departamento.nombre}${p.departamento.area ? ` - ${p.departamento.area.nombre}` : ''})` : ''}`,
+                    puesto: p,
+                    empresaId: p.departamento?.area?.empresa?.id,
+                }));
+                setSelectedPuestos(puestoOptions);
+                // Set empresa from first puesto
+                if (puestoOptions[0]?.empresaId) {
+                    loadEmpresaData(puestoOptions[0].empresaId);
+                }
+            }
+            setTipoContrato(contratoToEdit.tipoContrato || '');
+            setFormData({
+                fechaInicio: contratoToEdit.fechaInicio || '',
+                fechaFin: contratoToEdit.fechaFin || '',
+                horario: contratoToEdit.horario || '',
+                salario: contratoToEdit.salario?.toString() || '',
+                compensacion: contratoToEdit.compensacion || '',
+            });
+        }
+    }, [contratoToEdit]);
+
+    const loadInitialData = async () => {
+        try {
+            const [empleadosRes, empresasRes] = await Promise.all([
+                getEmpleados({ limit: 500, activo: 'true' }),
+                getEmpresas({ limit: 100, activo: 'true' }),
+            ]);
+            setEmpleados(empleadosRes.data || []);
+            setEmpresas(empresasRes.data || []);
+        } catch (err) {
+            console.error('Error loading data:', err);
+        }
+    };
+
+    const loadPuestosConContrato = async (empleados) => {
+        try {
+            const contratos = new Map(); // Map<puestoId, Map<empleadoId, empleadoNombre>>
+            for (const emp of empleados) {
+                const result = await getPuestosConContrato(emp.value);
+                const empleadoNombre = emp.label.split(' - ')[0]; // Nombre del empleado
+                (result.puestoIds || []).forEach(puestoId => {
+                    if (!contratos.has(puestoId)) {
+                        contratos.set(puestoId, new Map());
+                    }
+                    contratos.get(puestoId).set(emp.value, empleadoNombre);
+                });
+            }
+            setPuestosConContrato(contratos);
+        } catch (err) {
+            console.error('Error loading puestos con contrato:', err);
+        }
+    };
+
+    const loadEmpresaData = async (empresaId) => {
+        try {
+            const empresa = await getEmpresaById(empresaId);
+            setSelectedEmpresa(empresa);
+
+            // Flatten puestos from empresa hierarchy
+            const puestos = [];
+            empresa.areas?.forEach(area => {
+                area.departamentos?.forEach(depto => {
+                    depto.puestos?.forEach(puesto => {
+                        const empleadosConContratoPuesto = puestosConContrato.get(puesto.id);
+                        puestos.push({
+                            value: puesto.id,
+                            label: `${puesto.nombre} (${depto.nombre} - ${area.nombre})`,
+                            puesto: puesto,
+                            empresaId: empresa.id,
+                            empleadosConContrato: empleadosConContratoPuesto || new Map(),
+                        });
+                    });
+                });
+            });
+
+            // If we're in edit mode and have selectedPuestos, update their labels with the correct info
+            if (isEditMode && selectedPuestos.length > 0) {
+                const puestosMap = new Map(puestos.map(p => [p.value, p]));
+                setSelectedPuestos(prev => prev.map(sp => {
+                    const updatedPuesto = puestosMap.get(sp.value);
+                    return updatedPuesto ? { ...sp, ...updatedPuesto } : sp;
+                }));
+            }
+
+            setPuestosDisponibles(puestos);
+        } catch (err) {
+            console.error('Error loading empresa:', err);
+        }
+    };
+
+    const handleEmpleadoChange = async (options, skipPuestosReset = false) => {
+        const selectedOptions = options || [];
+        setSelectedEmpleados(selectedOptions);
+
+        // Resetear puestos al cambiar selección, except when loading edit data
+        if (!skipPuestosReset) {
+            setSelectedPuestos([]);
+            setSelectedEmpresa(null);
+            setPuestosDisponibles([]);
+        }
+
+        // Cargar puestos con contrato para todos los empleados seleccionados
+        if (selectedOptions.length > 0) {
+            await loadPuestosConContrato(selectedOptions);
+        } else {
+            setPuestosConContrato(new Map());
+        }
+        if (touched.empleados) validateStep();
+    };
+
+    const handleEmpresaChange = async (e) => {
+        const empresaId = e.target.value;
+        setSelectedPuestos([]);
+        if (empresaId) {
+            await loadEmpresaData(parseInt(empresaId));
+        } else {
+            setSelectedEmpresa(null);
+            setPuestosDisponibles([]);
+        }
+    };
+
+    const handlePuestosChange = (options) => {
+        setSelectedPuestos(options || []);
+        if (touched.puestos) validateStep();
+    };
+
+    const validateStep = () => {
+        const errors = {};
+
+        if (currentStep === 1) {
+            if (selectedEmpleados.length === 0) errors.empleados = 'Debe seleccionar al menos un empleado';
+            if (selectedPuestos.length === 0) errors.puestos = 'Debe seleccionar al menos un puesto';
+        } else if (currentStep === 2) {
+            if (!tipoContrato) errors.tipoContrato = 'Debe seleccionar un tipo de contrato';
+        } else if (currentStep === 3) {
+            // Validación de fecha de inicio
+            if (!formData.fechaInicio) {
+                errors.fechaInicio = 'La fecha de inicio es requerida';
+            } else if (!isEditMode) {
+                // Solo validar que no sea anterior a hoy si no es edición
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const [year, month, day] = formData.fechaInicio.split('-');
+                const startDate = new Date(year, month - 1, day); // fecha local
+                if (startDate < today) {
+                    errors.fechaInicio = 'La fecha de inicio no puede ser anterior a hoy';
+                }
+            }
+
+            // Validación de fecha de fin (si se ingresó)
+            if (formData.fechaFin && formData.fechaInicio) {
+                if (new Date(formData.fechaFin) < new Date(formData.fechaInicio)) {
+                    errors.fechaFin = 'La fecha de fin no puede ser anterior a la fecha de inicio';
+                }
+            }
+
+            // Validación de horario
+            if (!formData.horario?.trim()) {
+                errors.horario = 'El horario es requerido';
+            } else if (formData.horario.length < 5 || formData.horario.length > 100) {
+                errors.horario = 'El horario debe tener entre 5 y 100 caracteres';
+            }
+
+            // Validación de salario
+            if (!formData.salario) {
+                errors.salario = 'El salario es requerido';
+            } else if (isNaN(parseFloat(formData.salario))) {
+                errors.salario = 'Debe ser un número válido';
+            } else if (parseFloat(formData.salario) < 0) {
+                errors.salario = 'El salario no puede ser negativo';
+            } else if (parseFloat(formData.salario) > 999999999.99) {
+                errors.salario = 'El salario no puede exceder 999,999,999.99';
+            }
+
+            // Validación de compensación (opcional pero con límite)
+            if (formData.compensacion && formData.compensacion.length > 500) {
+                errors.compensacion = 'La compensación no puede exceder 500 caracteres';
+            }
+        }
+
+        setFieldErrors(errors);
+
+        // Mark all fields with errors as touched so error messages are displayed
+        if (Object.keys(errors).length > 0) {
+            const allTouched = {};
+            Object.keys(errors).forEach(key => { allTouched[key] = true; });
+            setTouched(prev => ({ ...prev, ...allTouched }));
+            setError('Por favor completa todos los campos obligatorios');
+        }
+
+        return Object.keys(errors).length === 0;
+    };
+
+    const handleBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        validateStep();
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        if (touched[name]) validateStep();
+    };
+
+    const nextStep = () => {
+        if (validateStep()) {
+            setCurrentStep(prev => prev + 1);
+            setTouched({});
+            setError('');
+        }
+    };
+
+    const prevStep = () => setCurrentStep(prev => prev - 1);
+
+    const handleSubmit = async () => {
+        if (!validateStep()) return;
+
+        setLoading(true);
+        setError('');
+
+        try {
+            // In edit mode, if selectedPuestos is empty but the contract has puestos, use original puestos
+            let puestoIds = selectedPuestos.map(p => p.value);
+            if (isEditMode && puestoIds.length === 0 && contratoToEdit?.puestos?.length > 0) {
+                puestoIds = contratoToEdit.puestos.map(p => p.id);
+            }
+            const baseData = {
+                puestoIds,
+                tipoContrato,
+                fechaInicio: formData.fechaInicio,
+                fechaFin: formData.fechaFin || null,
+                horario: formData.horario,
+                salario: parseFloat(formData.salario),
+                compensacion: formData.compensacion || null,
+            };
+
+            if (isEditMode) {
+                await updateContrato(contratoToEdit.id, { ...baseData, empleadoId: selectedEmpleados[0].value });
+                onSuccess(1);
+            } else {
+                // Crear un contrato por cada empleado seleccionado
+                let createdCount = 0;
+                for (const emp of selectedEmpleados) {
+                    await createContrato({ ...baseData, empleadoId: emp.value });
+                    createdCount++;
+                }
+                onSuccess(createdCount);
+            }
+        } catch (err) {
+            const errorMessage = err.message.toLowerCase();
+
+            // Handle fechaFin validation error specifically
+            if (errorMessage.includes('fecha de fin') || errorMessage.includes('fecha fin')) {
+                setCurrentStep(3);
+                setFieldErrors(prev => ({ ...prev, fechaFin: err.message }));
+                setTouched(prev => ({ ...prev, fechaFin: true }));
+            }
+
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Format option with individual "ya tiene contrato" badges per employee
+    const formatPuestoOption = (option) => {
+        // Find which of the selected employees have contracts for this position
+        const empleadosSeleccionadosConContrato = selectedEmpleados.filter(emp =>
+            option.empleadosConContrato?.has(emp.value)
+        );
+
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                <span>{option.label}</span>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {empleadosSeleccionadosConContrato.map(emp => (
+                        <span key={emp.value} style={{
+                            fontSize: '0.65rem',
+                            backgroundColor: '#f59e0b',
+                            color: 'white',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap',
+                        }}>
+                            {option.empleadosConContrato.get(emp.value)} ya tiene contrato
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // Disable position if ANY selected employee has a contract for it
+    const isPuestoDisabled = (option) => {
+        if (isEditMode) return false;
+        if (selectedEmpleados.length === 0) return false;
+
+        // Check if ANY selected employee has a contract for this position
+        const anyHasContract = selectedEmpleados.some(emp =>
+            option.empleadosConContrato?.has(emp.value)
+        );
+        return anyHasContract;
+    };
+
+    const empleadoOptions = empleados.map(emp => ({
+        value: emp.id,
+        label: `${emp.apellido}, ${emp.nombre} - ${emp.numeroDocumento}`,
+        empleado: emp,
+    }));
+
+    const isEmpleadoLocked = isEditMode;
+
+    // Update puestos options when puestosConContrato changes
+    useEffect(() => {
+        if (selectedEmpresa) {
+            loadEmpresaData(selectedEmpresa.id);
+        }
+    }, [puestosConContrato]);
+
+    const renderStep1 = () => (
+        <div style={{ display: 'grid', gap: '1.5rem' }}>
+            {/* Empleados */}
+            <div className="form-group">
+                <label className="form-label">
+                    {isEditMode ? 'Empleado *' : 'Empleado(s) *'}
+                    {!isEditMode && selectedEmpleados.length > 1 && (
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--primary-color)', fontWeight: 500 }}>
+                            ({selectedEmpleados.length} seleccionados - se creará un contrato por cada uno)
+                        </span>
+                    )}
+                </label>
+                <Select
+                    isMulti={!isEditMode}
+                    isDisabled={isEmpleadoLocked}
+                    options={empleadoOptions}
+                    value={selectedEmpleados}
+                    onChange={handleEmpleadoChange}
+                    onBlur={() => handleBlur('empleados')}
+                    placeholder={isEditMode ? "Empleado..." : "Buscar y seleccionar empleados..."}
+                    noOptionsMessage={() => "No se encontraron empleados"}
+                    styles={getSelectStyles(isDark)}
+                    isClearable={!isEmpleadoLocked}
+                    closeMenuOnSelect={isEditMode}
+                />
+                <FieldError message={touched.empleados && fieldErrors.empleados} />
+            </div>
+
+            {/* Empresa (para filtrar puestos) */}
+            {selectedEmpleados.length > 0 && (
+                <div className="form-group">
+                    <label className="form-label">Empresa *</label>
+                    <select
+                        className="form-input"
+                        value={selectedEmpresa?.id || ''}
+                        onChange={handleEmpresaChange}
+                        disabled={isEditMode}
+                    >
+                        <option value="">Seleccionar empresa</option>
+                        {empresas.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            {/* Puestos */}
+            {selectedEmpresa && (
+                <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Puestos de Trabajo *
+                        <span
+                            className="tooltip-icon"
+                            onClick={() => setShowTooltipPuestos(!showTooltipPuestos)}
+                        >
+                            ?
+                        </span>
+                    </label>
+                    {showTooltipPuestos && (
+                        <div className="tooltip-info">
+                            {TOOLTIP_PUESTOS.split('**').map((part, i) =>
+                                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                            )}
+                        </div>
+                    )}
+                    <Select
+                        isMulti
+                        options={puestosDisponibles}
+                        value={selectedPuestos}
+                        onChange={handlePuestosChange}
+                        onBlur={() => handleBlur('puestos')}
+                        placeholder="Seleccionar puestos..."
+                        noOptionsMessage={() => "No hay puestos disponibles"}
+                        formatOptionLabel={formatPuestoOption}
+                        isOptionDisabled={isPuestoDisabled}
+                        styles={getSelectStyles(isDark)}
+                        closeMenuOnSelect={false}
+                    />
+                    <FieldError message={touched.puestos && fieldErrors.puestos} />
+                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                        Los puestos con contrato activo no pueden ser seleccionados
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderStep2 = () => (
+        <div style={{ display: 'grid', gap: '1.5rem' }}>
+            <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Tipo de Contrato *
+                    <span
+                        className="tooltip-icon"
+                        onClick={() => setShowTooltipTipos(!showTooltipTipos)}
+                    >
+                        ?
+                    </span>
+                </label>
+                {showTooltipTipos && (
+                    <div className="tooltip-info">
+                        {TOOLTIP_TIPOS_CONTRATO.split('**').map((part, i) =>
+                            i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                        )}
+                    </div>
+                )}
+                <select
+                    className={`form-input ${touched.tipoContrato && fieldErrors.tipoContrato ? 'input-error' : ''}`}
+                    value={tipoContrato}
+                    onChange={(e) => { setTipoContrato(e.target.value); if (touched.tipoContrato) validateStep(); }}
+                    onBlur={() => handleBlur('tipoContrato')}
+                >
+                    <option value="">Seleccionar tipo de contrato</option>
+                    {Object.entries(TIPOS_CONTRATO).map(([category, options]) => (
+                        <optgroup key={category} label={category}>
+                            {options.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </optgroup>
+                    ))}
+                </select>
+                <FieldError message={touched.tipoContrato && fieldErrors.tipoContrato} />
+            </div>
+        </div>
+    );
+
+    const renderStep3 = () => (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+            {/* Fechas */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                    <label className="form-label">Fecha de Inicio *</label>
+                    <input
+                        type="date"
+                        name="fechaInicio"
+                        className={`form-input ${touched.fechaInicio && fieldErrors.fechaInicio ? 'input-error' : ''}`}
+                        value={formData.fechaInicio}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('fechaInicio')}
+                    />
+                    <FieldError message={touched.fechaInicio && fieldErrors.fechaInicio} />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Fecha de Fin</label>
+                    <input
+                        type="date"
+                        name="fechaFin"
+                        className={`form-input ${touched.fechaFin && fieldErrors.fechaFin ? 'input-error' : ''}`}
+                        value={formData.fechaFin}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('fechaFin')}
+                    />
+                    <FieldError message={touched.fechaFin && fieldErrors.fechaFin} />
+                </div>
+            </div>
+
+            {/* Horario */}
+            <div className="form-group">
+                <label className="form-label">Horario *</label>
+                <input
+                    type="text"
+                    name="horario"
+                    className={`form-input ${touched.horario && fieldErrors.horario ? 'input-error' : ''}`}
+                    value={formData.horario}
+                    onChange={handleChange}
+                    onBlur={() => handleBlur('horario')}
+                    placeholder="Ej: Lunes a Viernes 9:00 a 18:00"
+                />
+                <FieldError message={touched.horario && fieldErrors.horario} />
+            </div>
+
+            {/* Salario y Compensación */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                    <label className="form-label">Salario *</label>
+                    <input
+                        type="number"
+                        name="salario"
+                        className={`form-input ${touched.salario && fieldErrors.salario ? 'input-error' : ''}`}
+                        value={formData.salario}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('salario')}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                    />
+                    <FieldError message={touched.salario && fieldErrors.salario} />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Compensación</label>
+                    <input
+                        type="text"
+                        name="compensacion"
+                        className={`form-input ${touched.compensacion && fieldErrors.compensacion ? 'input-error' : ''}`}
+                        value={formData.compensacion}
+                        onChange={handleChange}
+                        onBlur={() => handleBlur('compensacion')}
+                        placeholder="Beneficios adicionales..."
+                    />
+                    <FieldError message={touched.compensacion && fieldErrors.compensacion} />
+                </div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
+                <div className="modal-header">
+                    <h2 className="modal-title">
+                        {isEditMode ? 'Editar Contrato' : 'Nuevo Contrato'}
+                    </h2>
+                    <button className="modal-close" onClick={onClose}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="modal-body" style={{ padding: '2rem' }}>
+                    <StepTracker steps={steps} currentStep={currentStep} />
+
+                    <div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '2rem' }}>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            {steps[currentStep - 1].title}
+                        </h3>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            {currentStep === 1 && 'Selecciona el empleado y los puestos que ocupará'}
+                            {currentStep === 2 && 'Elige el tipo de contrato laboral'}
+                            {currentStep === 3 && 'Completa los datos del contrato'}
+                        </p>
+                    </div>
+
+                    {error && (
+                        <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        </div>
+                    )}
+
+                    {currentStep === 1 && renderStep1()}
+                    {currentStep === 2 && renderStep2()}
+                    {currentStep === 3 && renderStep3()}
+                </div>
+
+                <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    <div>
+                        {currentStep > 1 && (
+                            <button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button className="btn btn-secondary" onClick={onClose}>
+                            Cancelar
+                        </button>
+                        {currentStep < 3 ? (
+                            <button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            </button>
+                        ) : (
+                            <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+                                {loading ? 'Guardando...' : (isEditMode ? 'Actualizar' : 'Crear')} Contrato
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ContratoWizard;

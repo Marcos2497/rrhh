@@ -17,10 +17,17 @@ const Puesto = sequelize.define('Puesto', {
     descripcion: {
         type: DataTypes.STRING(500),
         allowNull: true,
+        validate: {
+            len: { args: [0, 500], msg: 'La descripción del puesto no puede exceder 500 caracteres' },
+        },
     },
     departamentoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        references: {
+            model: 'departamentos',
+            key: 'id',
+        },
     },
 }, {
     tableName: 'puestos',

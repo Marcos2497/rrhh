@@ -1,21 +1,23 @@
 import React from 'react';
 
-const StepTracker = ({ currentStep, totalSteps = 5 }) => {
+const StepTracker = ({ currentStep, steps = [], totalSteps }) => {
+    // Usar steps.length si hay steps, sino totalSteps, sino 3
+    const total = steps.length || totalSteps || 3;
     const primaryColor = '#0d9488';
 
     return (
         <div className="step-tracker-container">
             <div className="step-header">
-                <span className="step-count" style={{ fontWeight: '600' }}>Paso {currentStep} de {totalSteps}</span>
+                <span className="step-count" style={{ fontWeight: '600' }}>Paso {currentStep} de {total}</span>
                 <span className="step-percentage" style={{ fontWeight: '600', color: primaryColor }}>
-                    {Math.round((currentStep / totalSteps) * 100)}%
+                    {Math.round((currentStep / total) * 100)}%
                 </span>
             </div>
             <div className="step-progress-bar" style={{ background: 'rgba(100, 100, 100, 0.15)', height: '6px', borderRadius: '3px' }}>
                 <div
                     className="step-progress-fill"
                     style={{
-                        width: `${(currentStep / totalSteps) * 100}%`,
+                        width: `${(currentStep / total) * 100}%`,
                         background: primaryColor,
                         height: '100%',
                         borderRadius: '3px',
@@ -25,12 +27,13 @@ const StepTracker = ({ currentStep, totalSteps = 5 }) => {
             </div>
 
             <div className="steps-indicators" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', position: 'relative' }}>
-                {Array.from({ length: totalSteps }).map((_, index) => {
+                {Array.from({ length: total }).map((_, index) => {
                     const stepNum = index + 1;
                     const isCompleted = stepNum < currentStep;
                     const isCurrent = stepNum === currentStep;
                     const isPending = stepNum > currentStep;
-                    const isLast = stepNum === totalSteps;
+                    const isLast = stepNum === total;
+                    const stepTitle = steps[index]?.title || '';
 
                     return (
                         <div

@@ -10,9 +10,9 @@ const Icons = {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
     ),
-    building: (
+    user: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
         </svg>
     ),
     mail: (
@@ -25,15 +25,50 @@ const Icons = {
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
         </svg>
     ),
+    document: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+        </svg>
+    ),
     location: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
         </svg>
     ),
-    industry: (
+    globe: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+        </svg>
+    ),
+    heart: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+        </svg>
+    ),
+    users: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+        </svg>
+    ),
+    identification: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
+        </svg>
+    ),
+    home: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+        </svg>
+    ),
+    building: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+        </svg>
+    ),
+    mapPin: (
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
         </svg>
     ),
     circle: (
@@ -46,17 +81,10 @@ const Icons = {
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
         </svg>
     ),
-    users: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-        </svg>
-    ),
 };
 
-const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
-    if (!empresa) return null;
-
-    const primaryColor = '#0d9488';
+const EmpleadoDetail = ({ empleado, onClose, onEdit }) => {
+    if (!empleado) return null;
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
@@ -80,17 +108,20 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
         return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
     };
 
-    // Calculate totals
-    const totalAreas = empresa.areas?.length || 0;
-    const totalDepartamentos = empresa.areas?.reduce((acc, area) => acc + (area.departamentos?.length || 0), 0) || 0;
-    const totalPuestos = empresa.areas?.reduce((acc, area) =>
-        acc + (area.departamentos?.reduce((acc2, depto) => acc2 + (depto.puestos?.length || 0), 0) || 0), 0) || 0;
+    const getGeneroLabel = (genero) => {
+        const labels = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro' };
+        return labels[genero] || genero || '-';
+    };
 
-    // Calculate total employees (count unique employees from all positions)
-    const totalEmpleados = empresa.areas?.reduce((acc, area) =>
-        acc + (area.departamentos?.reduce((acc2, depto) =>
-            acc2 + (depto.puestos?.reduce((acc3, puesto) =>
-                acc3 + (puesto.contratos?.filter(c => c.activo)?.length || 0), 0) || 0), 0) || 0), 0) || 0;
+    const getEstadoCivilLabel = (estado) => {
+        const labels = { soltero: 'Soltero/a', casado: 'Casado/a', divorciado: 'Divorciado/a', viudo: 'Viudo/a' };
+        return labels[estado] || estado || '-';
+    };
+
+    const getTipoDocLabel = (tipo) => {
+        const labels = { cedula: 'Cédula', pasaporte: 'Pasaporte' };
+        return labels[tipo] || tipo || '-';
+    };
 
     // Field component with icon
     const Field = ({ icon, label, value }) => (
@@ -156,41 +187,12 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
         </div>
     );
 
-    // Counter card component (for use in a unified container with dividers)
-    const CounterCard = ({ value, label, color }) => (
-        <div style={{
-            padding: '1rem',
-            textAlign: 'center'
-        }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color }}>{value}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{label}</div>
-        </div>
-    );
-
-    // Calculate employee count for area
-    const getAreaEmployeeCount = (area) => {
-        return area.departamentos?.reduce((acc, depto) =>
-            acc + (depto.puestos?.reduce((acc2, puesto) =>
-                acc2 + (puesto.contratos?.filter(c => c.activo)?.length || 0), 0) || 0), 0) || 0;
-    };
-
-    // Calculate employee count for department
-    const getDeptoEmployeeCount = (depto) => {
-        return depto.puestos?.reduce((acc, puesto) =>
-            acc + (puesto.contratos?.filter(c => c.activo)?.length || 0), 0) || 0;
-    };
-
-    // Calculate employee count for position
-    const getPuestoEmployeeCount = (puesto) => {
-        return puesto.contratos?.filter(c => c.activo)?.length || 0;
-    };
-
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 {/* Header */}
                 <div className="modal-header">
-                    <h2 className="modal-title">Detalle de Empresa</h2>
+                    <h2 className="modal-title">Detalle del Empleado</h2>
                     <button className="modal-close" onClick={onClose}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 24, height: 24 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -199,7 +201,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                 </div>
 
                 <div className="modal-body" style={{ padding: '1.5rem 2rem 2rem' }}>
-                    {/* Top Section: Company name + ID + Edit button */}
+                    {/* Top Section: Employee name + ID + Edit button */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <h2 style={{
@@ -208,7 +210,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 color: 'var(--text-primary)',
                                 margin: 0
                             }}>
-                                {empresa.nombre}
+                                {empleado.apellido}, {empleado.nombre}
                             </h2>
                             <span style={{
                                 fontSize: '0.85rem',
@@ -218,11 +220,11 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                 padding: '0.25rem 0.6rem',
                                 borderRadius: '0.25rem'
                             }}>
-                                #{empresa.id}
+                                #{empleado.id}
                             </span>
                         </div>
                         {onEdit && (
-                            <button className="btn btn-warning btn-sm" onClick={() => onEdit(empresa)} title="Editar">
+                            <button className="btn btn-warning btn-sm" onClick={() => onEdit(empleado)} title="Editar">
                                 {Icons.edit}
                                 Editar
                             </button>
@@ -231,7 +233,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
 
                     {/* Registro de Actividad Section */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
+                        <SectionHeader title="Registro de Actividad" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                         <div style={{
                             background: 'var(--card-bg)',
                             borderRadius: '0.5rem',
@@ -256,7 +258,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(empresa.createdAt)}
+                                        {formatDate(empleado.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -282,17 +284,17 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                         fontSize: '0.8rem',
                                         padding: '0.3rem 0.7rem',
                                         borderRadius: '9999px',
-                                        background: empresa.activo ? 'rgba(21, 128, 61, 0.2)' : 'rgba(239, 68, 68, 0.15)',
-                                        color: empresa.activo ? '#15803d' : '#ef4444',
+                                        background: empleado.activo ? 'rgba(21, 128, 61, 0.2)' : 'rgba(239, 68, 68, 0.15)',
+                                        color: empleado.activo ? '#15803d' : '#ef4444',
                                         fontWeight: 700
                                     }}>
                                         <span style={{
                                             width: '7px',
                                             height: '7px',
                                             borderRadius: '50%',
-                                            background: empresa.activo ? '#15803d' : '#ef4444'
+                                            background: empleado.activo ? '#15803d' : '#ef4444'
                                         }} />
-                                        {empresa.activo ? 'Activo' : 'Inactivo'}
+                                        {empleado.activo ? 'Activo' : 'Inactivo'}
                                     </span>
                                 </div>
                             </div>
@@ -311,7 +313,7 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(empresa.updatedAt)}
+                                        {formatDate(empleado.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -322,116 +324,41 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                         {/* Column 1: Resumen */}
                         <div>
-                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
+                            <SectionHeader title="Resumen" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
                                 border: '1px solid var(--border-color)',
                                 padding: '0 1rem'
                             }}>
-                                <Field icon={Icons.building} label="Nombre" value={empresa.nombre} />
-                                <Field icon={Icons.industry} label="Industria" value={empresa.industria} />
-                                <Field icon={Icons.mail} label="Email" value={empresa.email} />
-                                <Field icon={Icons.phone} label="Teléfono" value={empresa.telefono} />
-                                <Field icon={Icons.location} label="Dirección" value={empresa.direccion} />
+                                <Field icon={Icons.user} label="Nombre Completo" value={`${empleado.apellido}, ${empleado.nombre}`} />
+                                <Field icon={Icons.mail} label="Email" value={empleado.email} />
+                                <Field icon={Icons.phone} label="Teléfono" value={empleado.telefono} />
+                                <Field icon={Icons.identification} label="Documento" value={`${getTipoDocLabel(empleado.tipoDocumento)}: ${empleado.numeroDocumento}`} />
+                                <Field icon={Icons.document} label="CUIL" value={empleado.cuil} />
+                                <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDate(empleado.fechaNacimiento)} />
+                                <Field icon={Icons.globe} label="Nacionalidad" value={empleado.nacionalidad} />
+                                <Field icon={Icons.users} label="Género" value={getGeneroLabel(empleado.genero)} />
+                                <Field icon={Icons.heart} label="Estado Civil" value={getEstadoCivilLabel(empleado.estadoCivil)} />
                             </div>
                         </div>
 
-                        {/* Column 2: Estructura Organizacional */}
+                        {/* Column 2: Dirección Legal */}
                         <div>
-                            <SectionHeader title="Estructura Organizacional" subtitle={`Últimos cambios hace ${getRelativeTime(empresa.updatedAt)}`} />
-
-                            {/* Counters */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(4, 1fr)',
-                                marginBottom: '1rem',
-                                background: 'var(--card-bg)',
-                                borderRadius: '0.5rem',
-                                overflow: 'hidden'
-                            }}>
-                                <CounterCard value={totalAreas} label="Áreas" color={primaryColor} />
-                                <CounterCard value={totalDepartamentos} label="Departamentos" color="#22c55e" />
-                                <CounterCard value={totalPuestos} label="Puestos" color="#3b82f6" />
-                                <CounterCard value={totalEmpleados} label="Empleados" color="#8b5cf6" isLast />
-                            </div>
-
-                            {/* Tree Structure */}
+                            <SectionHeader title="Dirección Legal" subtitle={`Últimos cambios hace ${getRelativeTime(empleado.updatedAt)}`} />
                             <div style={{
                                 background: 'var(--card-bg)',
                                 borderRadius: '0.5rem',
                                 border: '1px solid var(--border-color)',
-                                padding: '1rem',
-                                maxHeight: '350px',
-                                overflowY: 'auto'
+                                padding: '0 1rem'
                             }}>
-                                {!empresa.areas || empresa.areas.length === 0 ? (
-                                    <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '1rem', margin: 0 }}>Sin estructura definida</p>
-                                ) : (
-                                    <div style={{ paddingLeft: '0.5rem' }}>
-                                        {empresa.areas.map((area, areaIndex) => (
-                                            <div key={area.id} style={{ position: 'relative', paddingLeft: '1.5rem', marginBottom: areaIndex === empresa.areas.length - 1 ? 0 : '1rem' }}>
-                                                {/* Vertical line */}
-                                                <div style={{ position: 'absolute', left: 0, top: '0.75rem', bottom: area.departamentos?.length > 0 ? '0.75rem' : 0, width: '2px', background: primaryColor }} />
-                                                {/* Horizontal line */}
-                                                <div style={{ position: 'absolute', left: 0, top: '0.75rem', width: '1rem', height: '2px', background: primaryColor }} />
-
-                                                {/* Area row */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: primaryColor, flexShrink: 0 }} />
-                                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{area.nombre}</span>
-                                                    <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: `${primaryColor}15`, color: primaryColor, borderRadius: '1rem', fontWeight: 500 }}>
-                                                        {area.departamentos?.length || 0} Depto(s)
-                                                    </span>
-                                                    <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', background: '#8b5cf615', color: '#8b5cf6', borderRadius: '1rem', fontWeight: 500 }}>
-                                                        {getAreaEmployeeCount(area)} Empleado(s)
-                                                    </span>
-                                                </div>
-
-                                                {/* Departments */}
-                                                {area.departamentos?.map((depto, deptoIndex) => (
-                                                    <div key={depto.id} style={{ position: 'relative', paddingLeft: '1.5rem', marginBottom: deptoIndex === area.departamentos.length - 1 ? 0 : '0.5rem' }}>
-                                                        {/* Vertical line for puestos */}
-                                                        {depto.puestos?.length > 0 && (
-                                                            <div style={{ position: 'absolute', left: '0.75rem', top: '0.4rem', bottom: '0.4rem', width: '2px', background: '#22c55e' }} />
-                                                        )}
-                                                        {/* Horizontal line */}
-                                                        <div style={{ position: 'absolute', left: 0, top: '0.4rem', width: '1.25rem', height: '2px', background: '#22c55e' }} />
-
-                                                        {/* Department row */}
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: depto.puestos?.length > 0 ? '0.4rem' : 0, flexWrap: 'wrap' }}>
-                                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                                                            <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.85rem' }}>{depto.nombre}</span>
-                                                            <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: '#22c55e20', color: '#22c55e', borderRadius: '1rem' }}>
-                                                                {depto.puestos?.length || 0} Puesto(s)
-                                                            </span>
-                                                            <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', background: '#8b5cf615', color: '#8b5cf6', borderRadius: '1rem' }}>
-                                                                {getDeptoEmployeeCount(depto)} Empleado(s)
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Positions */}
-                                                        {depto.puestos?.map((puesto, puestoIndex) => (
-                                                            <div key={puesto.id} style={{ position: 'relative', paddingLeft: '1.5rem', marginBottom: puestoIndex === depto.puestos.length - 1 ? 0 : '0.25rem' }}>
-                                                                {/* Horizontal line */}
-                                                                <div style={{ position: 'absolute', left: '0.25rem', top: '0.4rem', width: '1rem', height: '2px', background: 'var(--text-secondary)', opacity: 0.3 }} />
-
-                                                                {/* Position row */}
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-secondary)', opacity: 0.5, flexShrink: 0 }} />
-                                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{puesto.nombre}</span>
-                                                                    <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', background: '#8b5cf615', color: '#8b5cf6', borderRadius: '1rem' }}>
-                                                                        {getPuestoEmployeeCount(puesto)} Empleado(s)
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                <Field icon={Icons.home} label="Calle" value={empleado.calle} />
+                                <Field icon={Icons.building} label="Número" value={empleado.numero} />
+                                <Field icon={Icons.building} label="Piso" value={empleado.piso} />
+                                <Field icon={Icons.building} label="Departamento" value={empleado.departamento} />
+                                <Field icon={Icons.mapPin} label="Provincia" value={empleado.provinciaNombre} />
+                                <Field icon={Icons.location} label="Ciudad" value={empleado.ciudadNombre} />
+                                <Field icon={Icons.document} label="Código Postal" value={empleado.codigoPostal} />
                             </div>
                         </div>
                     </div>
@@ -452,4 +379,4 @@ const EmpresaDetail = ({ empresa, onClose, onEdit }) => {
     );
 };
 
-export default EmpresaDetail;
+export default EmpleadoDetail;

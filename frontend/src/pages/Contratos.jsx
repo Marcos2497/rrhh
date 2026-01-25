@@ -1,19 +1,53 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-    getEmpleados,
-    deleteEmpleado,
-    deleteEmpleadosBulk,
-    getEmpleadoById,
-    reactivateEmpleado,
+    getContratos,
+    deleteContrato,
+    deleteContratosBulk,
+    getContratoById,
+    reactivateContrato,
 } from '../services/api';
-import EmpleadoWizard from '../components/EmpleadoWizard';
-import EmpleadoDetail from '../components/EmpleadoDetail';
+import ContratoWizard from '../components/ContratoWizard';
+import ContratoDetail from '../components/ContratoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
-const Empleados = () => {
+// Mapeo de tipos de contrato a labels legibles
+const TIPOS_CONTRATO_LABELS = {
+    tiempo_indeterminado: 'Tiempo Indeterminado',
+    periodo_prueba: 'Período de Prueba',
+    plazo_fijo: 'Plazo Fijo',
+    eventual: 'Eventual',
+    teletrabajo: 'Teletrabajo',
+    locacion_servicios: 'Locación de Servicios',
+    monotributista: 'Monotributista',
+    responsable_inscripto: 'Responsable Inscripto',
+    honorarios: 'Honorarios',
+    contrato_obra: 'Contrato de Obra',
+    pasantia_educativa: 'Pasantía Educativa',
+    beca: 'Beca',
+    ad_honorem: 'Ad honorem',
+};
+
+// Todos los tipos para el filtro
+const TIPOS_CONTRATO_FILTER = [
+    { value: 'tiempo_indeterminado', label: 'Tiempo Indeterminado' },
+    { value: 'periodo_prueba', label: 'Período de Prueba' },
+    { value: 'plazo_fijo', label: 'Plazo Fijo' },
+    { value: 'eventual', label: 'Eventual' },
+    { value: 'teletrabajo', label: 'Teletrabajo' },
+    { value: 'locacion_servicios', label: 'Locación de Servicios' },
+    { value: 'monotributista', label: 'Monotributista' },
+    { value: 'responsable_inscripto', label: 'Responsable Inscripto' },
+    { value: 'honorarios', label: 'Honorarios' },
+    { value: 'contrato_obra', label: 'Contrato de Obra' },
+    { value: 'pasantia_educativa', label: 'Pasantía Educativa' },
+    { value: 'beca', label: 'Beca' },
+    { value: 'ad_honorem', label: 'Ad honorem' },
+];
+
+const Contratos = () => {
     // Data State
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,35 +64,46 @@ const Empleados = () => {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [filterActivo, setFilterActivo] = useState('true');
+    const [filterTipoContrato, setFilterTipoContrato] = useState('');
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
 
     // Column Visibility
     const [visibleColumns, setVisibleColumns] = useState({
-        email: true,
-        documento: true,
-        nacionalidad: true,
+        tipoContrato: true,
+        fechaInicio: true,
+        fechaFin: true,
+        salario: true,
     });
     const [showColumnSelector, setShowColumnSelector] = useState(false);
 
     // Modal State
     const [showWizard, setShowWizard] = useState(false);
+    const [modoMultiple, setModoMultiple] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [selectedItem, setSelectedItem] = useState(null);
+    const [empleadoPreseleccionado, setEmpleadoPreseleccionado] = useState(null);
+
+    // Navigation state
+    const location = useLocation();
+    const navigate = useNavigate();
 
     // Delete Confirmation
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Employee to Contract Flow
-    const [showContratoPrompt, setShowContratoPrompt] = useState(false);
-    const [nuevoEmpleado, setNuevoEmpleado] = useState(null);
-    const navigate = useNavigate();
-
-
+    // Abrir modal si viene con empleado preseleccionado desde navegación
+    useEffect(() => {
+        if (location.state?.empleadoPreseleccionado) {
+            setEmpleadoPreseleccionado(location.state.empleadoPreseleccionado);
+            setShowWizard(true);
+            // Limpiar el state para que no se reabra al recargar
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, navigate, location.pathname]);
 
     // Debounce Search
     useEffect(() => {
@@ -73,13 +118,13 @@ const Empleados = () => {
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
-            const result = await getEmpleados({
-                nombre: search,
+            const result = await getContratos({
+                search,
+                tipoContrato: filterTipoContrato,
                 activo: filterActivo,
                 page,
                 limit,
             });
-
             setItems(result.data);
             setTotalPages(result.pagination.totalPages);
             setTotal(result.pagination.total);
@@ -89,22 +134,22 @@ const Empleados = () => {
         } finally {
             setLoading(false);
         }
-    }, [search, filterActivo, page, limit]);
+    }, [search, filterTipoContrato, filterActivo, page, limit]);
 
     useEffect(() => {
         loadItems();
     }, [loadItems]);
 
-
-
+    // Handlers
     const clearFilters = () => {
         setSearchInput('');
         setSearch('');
         setFilterActivo('true');
+        setFilterTipoContrato('');
         setPage(1);
     };
 
-    const hasActiveFilters = searchInput || filterActivo !== 'true';
+    const hasActiveFilters = searchInput || filterActivo !== 'true' || filterTipoContrato;
 
     // Selection Handlers
     const handleSelectAll = (e) => {
@@ -134,8 +179,9 @@ const Empleados = () => {
     };
 
     // CRUD Handlers
-    const handleCreate = () => {
+    const handleCreate = (multiple = false) => {
         setEditingItem(null);
+        setModoMultiple(multiple);
         setShowWizard(true);
         setError('');
         setSuccess('');
@@ -143,7 +189,7 @@ const Empleados = () => {
 
     const handleEdit = async (item) => {
         try {
-            const fullItem = await getEmpleadoById(item.id);
+            const fullItem = await getContratoById(item.id);
             setEditingItem(fullItem);
             setShowWizard(true);
             setError('');
@@ -155,7 +201,7 @@ const Empleados = () => {
 
     const handleView = async (item) => {
         try {
-            const fullItem = await getEmpleadoById(item.id);
+            const fullItem = await getContratoById(item.id);
             setSelectedItem(fullItem);
             setShowDetail(true);
         } catch (err) {
@@ -166,33 +212,20 @@ const Empleados = () => {
     const handleCloseWizard = () => {
         setShowWizard(false);
         setEditingItem(null);
+        setModoMultiple(false);
+        setEmpleadoPreseleccionado(null);
     };
 
-    const handleWizardSuccess = (empleadoCreado = null) => {
+    const handleWizardSuccess = (count = 1) => {
         handleCloseWizard();
         if (editingItem) {
-            setSuccess('Empleado actualizado correctamente');
+            setSuccess('Contrato actualizado correctamente');
+        } else if (count > 1) {
+            setSuccess(`${count} contratos creados correctamente`);
         } else {
-            setSuccess('Empleado creado correctamente');
-            // Si es un nuevo empleado, preguntar si desea crear contrato
-            if (empleadoCreado) {
-                setNuevoEmpleado(empleadoCreado);
-                setShowContratoPrompt(true);
-            }
+            setSuccess('Contrato creado correctamente');
         }
         loadItems();
-    };
-
-    const handleContratoPromptYes = () => {
-        setShowContratoPrompt(false);
-        // Navegar a /contratos con el empleado preseleccionado
-        navigate('/contratos', { state: { empleadoPreseleccionado: nuevoEmpleado } });
-        setNuevoEmpleado(null);
-    };
-
-    const handleContratoPromptNo = () => {
-        setShowContratoPrompt(false);
-        setNuevoEmpleado(null);
     };
 
     const handleDeleteClick = (item) => {
@@ -203,8 +236,8 @@ const Empleados = () => {
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            await deleteEmpleado(itemToDelete.id);
-            setSuccess('Empleado desactivado correctamente');
+            await deleteContrato(itemToDelete.id);
+            setSuccess('Contrato desactivado correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -226,8 +259,8 @@ const Empleados = () => {
 
     const handleConfirmBulkDelete = async () => {
         try {
-            await deleteEmpleadosBulk(Array.from(selectedIds));
-            setSuccess(`${selectedIds.size} empleado(s) desactivado(s) correctamente`);
+            await deleteContratosBulk(Array.from(selectedIds));
+            setSuccess(`${selectedIds.size} contrato(s) desactivado(s) correctamente`);
             setSelectedIds(new Set());
             loadItems();
         } catch (err) {
@@ -239,8 +272,8 @@ const Empleados = () => {
 
     const handleReactivate = async (item) => {
         try {
-            await reactivateEmpleado(item.id);
-            setSuccess('Empleado reactivado correctamente');
+            await reactivateContrato(item.id);
+            setSuccess('Contrato reactivado correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -249,13 +282,24 @@ const Empleados = () => {
 
     const showingInactive = filterActivo === 'false';
 
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    const formatCurrency = (value) => {
+        if (!value) return '-';
+        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+    };
+
     return (
         <div>
             {/* Header */}
             <div className="page-header">
                 <div>
-                    <h1 className="page-title">Empleados</h1>
-                    <p className="page-subtitle">Gestiona los empleados de la organización</p>
+                    <h1 className="page-title">Contratos</h1>
+                    <p className="page-subtitle">Gestiona los contratos de los empleados</p>
                 </div>
             </div>
 
@@ -277,7 +321,7 @@ const Empleados = () => {
             <div className="card">
                 <div className="card-header">
                     <div className="header-left">
-                        <h3 className="card-title">Listado de Empleados</h3>
+                        <h3 className="card-title">Listado de Contratos</h3>
                         <span className="selection-indicator">
                             {selectedIds.size} de {total} seleccionados
                         </span>
@@ -291,11 +335,11 @@ const Empleados = () => {
                                 Desactivar seleccionados
                             </button>
                         )}
-                        <button className="btn btn-primary" onClick={handleCreate}>
+                        <button className="btn btn-primary" onClick={() => handleCreate(false)}>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
-                            Nuevo Empleado
+                            Nuevo Contrato
                         </button>
                     </div>
                 </div>
@@ -303,7 +347,15 @@ const Empleados = () => {
                 {/* Filters */}
                 <div className="filters-bar">
                     <div className="filter-group">
-                        <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ minWidth: '200px' }} />
+                        <input type="text" className="filter-input" placeholder="Buscar por empleado..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ minWidth: '200px' }} />
+                    </div>
+                    <div className="filter-group">
+                        <select className="filter-input" value={filterTipoContrato} onChange={(e) => { setFilterTipoContrato(e.target.value); setPage(1); }}>
+                            <option value="">Tipo de contrato</option>
+                            {TIPOS_CONTRATO_FILTER.map(tipo => (
+                                <option key={tipo.value} value={tipo.value}>{tipo.label}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="filter-group">
                         <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -322,7 +374,7 @@ const Empleados = () => {
                             </button>
                             {showColumnSelector && (
                                 <div className="column-selector-dropdown">
-                                    {Object.entries({ email: 'Email', documento: 'Documento', nacionalidad: 'Nacionalidad' }).map(([key, label]) => (
+                                    {Object.entries({ tipoContrato: 'Tipo', fechaInicio: 'Inicio', fechaFin: 'Fin', salario: 'Salario' }).map(([key, label]) => (
                                         <label key={key} className="column-option">
                                             <input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
                                             <span>{label}</span>
@@ -348,10 +400,10 @@ const Empleados = () => {
                 ) : items.length === 0 ? (
                     <div className="empty-state">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
-                        <h3>No hay empleados {showingInactive ? 'inactivos' : ''}</h3>
-                        <p>{showingInactive ? 'No hay empleados desactivados' : 'Crea un nuevo empleado para comenzar'}</p>
+                        <h3>No hay contratos {showingInactive ? 'inactivos' : ''}</h3>
+                        <p>{showingInactive ? 'No hay contratos desactivados' : 'Crea un nuevo contrato para comenzar'}</p>
                     </div>
                 ) : (
                     <>
@@ -362,10 +414,11 @@ const Empleados = () => {
                                         <th style={{ width: '40px' }}>
                                             <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                         </th>
-                                        <th>Nombre</th>
-                                        {visibleColumns.email && <th>Email</th>}
-                                        {visibleColumns.documento && <th>Documento</th>}
-                                        {visibleColumns.nacionalidad && <th>Nacionalidad</th>}
+                                        <th>Empleado</th>
+                                        {visibleColumns.tipoContrato && <th>Tipo</th>}
+                                        {visibleColumns.fechaInicio && <th>Inicio</th>}
+                                        {visibleColumns.fechaFin && <th>Fin</th>}
+                                        {visibleColumns.salario && <th>Salario</th>}
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -373,10 +426,16 @@ const Empleados = () => {
                                     {items.map((item) => (
                                         <tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
                                             <td><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} /></td>
-                                            <td><strong>{item.apellido}, {item.nombre}</strong></td>
-                                            {visibleColumns.email && <td>{item.email}</td>}
-                                            {visibleColumns.documento && <td>{item.numeroDocumento}</td>}
-                                            {visibleColumns.nacionalidad && <td>{item.nacionalidad || '-'}</td>}
+                                            <td>
+                                                <strong>{item.empleado?.apellido}, {item.empleado?.nombre}</strong>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    {item.empleado?.numeroDocumento}
+                                                </div>
+                                            </td>
+                                            {visibleColumns.tipoContrato && <td><span className="badge badge-primary">{TIPOS_CONTRATO_LABELS[item.tipoContrato] || item.tipoContrato}</span></td>}
+                                            {visibleColumns.fechaInicio && <td>{formatDate(item.fechaInicio)}</td>}
+                                            {visibleColumns.fechaFin && <td>{formatDate(item.fechaFin)}</td>}
+                                            {visibleColumns.salario && <td>{formatCurrency(item.salario)}</td>}
                                             <td>
                                                 <div className="table-actions">
                                                     {showingInactive ? (
@@ -442,17 +501,17 @@ const Empleados = () => {
 
             {/* Modals */}
             {showWizard && (
-                <EmpleadoWizard empleado={editingItem} onClose={handleCloseWizard} onSuccess={handleWizardSuccess} />
+                <ContratoWizard contrato={editingItem} onClose={handleCloseWizard} onSuccess={handleWizardSuccess} empleadoPreseleccionado={empleadoPreseleccionado} />
             )}
 
             {showDetail && selectedItem && (
-                <EmpleadoDetail
-                    empleado={selectedItem}
+                <ContratoDetail
+                    contrato={selectedItem}
                     onClose={() => { setShowDetail(false); setSelectedItem(null); }}
-                    onEdit={(empleado) => {
+                    onEdit={(contrato) => {
                         setShowDetail(false);
                         setSelectedItem(null);
-                        setEditingItem(empleado);
+                        setEditingItem(contrato);
                         setShowWizard(true);
                     }}
                 />
@@ -460,8 +519,8 @@ const Empleados = () => {
 
             <ConfirmDialog
                 isOpen={confirmOpen}
-                title="Desactivar empleado"
-                message={itemToDelete ? `¿Estás seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? Podrás reactivarlo más tarde.` : ''}
+                title="Desactivar contrato"
+                message={itemToDelete ? `¿Estás seguro de desactivar el contrato de "${itemToDelete.empleado?.nombre} ${itemToDelete.empleado?.apellido}"? Podrás reactivarlo más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -470,26 +529,15 @@ const Empleados = () => {
 
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
-                title="Desactivar empleados"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} empleado(s)? Podrás reactivarlos más tarde.`}
+                title="Desactivar contratos"
+                message={`¿Estás seguro de desactivar ${selectedIds.size} contrato(s)? Podrás reactivarlos más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
                 variant="danger"
             />
-
-            {/* Prompt para crear contrato después de crear empleado */}
-            <ConfirmDialog
-                isOpen={showContratoPrompt}
-                title="¿Registrar contrato?"
-                message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. ¿Deseas registrar un contrato para este empleado ahora?` : ''}
-                onConfirm={handleContratoPromptYes}
-                onCancel={handleContratoPromptNo}
-                confirmText="Sí, crear contrato"
-                cancelText="No, más tarde"
-            />
         </div>
     );
 };
 
-export default Empleados;
+export default Contratos;

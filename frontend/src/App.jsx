@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Empleados from './pages/Empleados';
-import Nacionalidades from './pages/Nacionalidades';
 import Empresas from './pages/Empresas';
+import Contratos from './pages/Contratos';
+import RegistrosSalud from './pages/RegistrosSalud';
+import Evaluaciones from './pages/Evaluaciones';
 
 function App() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -18,8 +20,10 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Navigate to="/empleados" replace />} />
                     <Route path="/empleados" element={<Empleados />} />
-                    <Route path="/nacionalidades" element={<Nacionalidades />} />
                     <Route path="/empresas" element={<Empresas />} />
+                    <Route path="/contratos" element={<Contratos />} />
+                    <Route path="/registros-salud" element={<RegistrosSalud />} />
+                    <Route path="/evaluaciones" element={<Evaluaciones />} />
                 </Routes>
             </main>
         </div>

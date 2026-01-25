@@ -7,6 +7,7 @@ const Empleado = sequelize.define('Empleado', {
         primaryKey: true,
         autoIncrement: true,
     },
+    // Información básica
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -56,13 +57,23 @@ const Empleado = sequelize.define('Empleado', {
     numeroDocumento: {
         type: DataTypes.STRING(20),
         allowNull: false,
+        unique: true,
         validate: {
             notEmpty: { msg: 'El número de documento es requerido' },
+            is: {
+                args: /^(\d{8}|[MF]\d{7})$/,
+                msg: 'El documento debe ser 8 números o comenzar con M/F seguido de 7 números',
+            },
         },
     },
     cuil: {
         type: DataTypes.STRING(13),
         allowNull: true,
+        unique: true,
+        set(value) {
+            // Convert empty string to null to avoid unique constraint issues
+            this.setDataValue('cuil', value === '' ? null : value);
+        },
         validate: {
             is: {
                 args: /^(\d{2}-\d{8}-\d{1})?$/,
@@ -76,14 +87,33 @@ const Empleado = sequelize.define('Empleado', {
         validate: {
             notEmpty: { msg: 'La fecha de nacimiento es requerida' },
             isDate: { msg: 'Debe ser una fecha válida' },
-            isBefore: {
-                args: new Date().toISOString().split('T')[0],
-                msg: 'La fecha de nacimiento debe ser anterior a hoy',
+            isAfter: {
+                args: '1899-12-31',
+                msg: 'La fecha de nacimiento no es válida',
+            },
+            isNotFuture(value) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (new Date(value) > today) {
+                    throw new Error('La fecha de nacimiento no puede ser futura');
+                }
+            },
+            isMinimumAge(value) {
+                const today = new Date();
+                const birthDate = new Date(value);
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                if (age < 14) {
+                    throw new Error('El empleado debe tener al menos 14 años');
+                }
             },
         },
     },
-    nacionalidadId: {
-        type: DataTypes.INTEGER,
+    nacionalidad: {
+        type: DataTypes.STRING(100),
         allowNull: false,
         validate: {
             notEmpty: { msg: 'La nacionalidad es requerida' },
@@ -109,6 +139,70 @@ const Empleado = sequelize.define('Empleado', {
                 args: [['soltero', 'casado', 'divorciado', 'viudo']],
                 msg: 'El estado civil debe ser soltero, casado, divorciado o viudo',
             },
+        },
+    },
+    // Dirección
+    calle: {
+        type: DataTypes.STRING(200),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'La calle es requerida' },
+            len: { args: [1, 200], msg: 'La calle debe tener entre 1 y 200 caracteres' },
+        },
+    },
+    numero: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'El número es requerido' },
+            len: { args: [1, 20], msg: 'El número debe tener entre 1 y 20 caracteres' },
+        },
+    },
+    piso: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+        validate: {
+            len: { args: [0, 10], msg: 'El piso no puede exceder 10 caracteres' },
+        },
+    },
+    departamento: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+        validate: {
+            len: { args: [0, 10], msg: 'El departamento no puede exceder 10 caracteres' },
+        },
+    },
+    codigoPostal: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+        validate: {
+            len: { args: [0, 10], msg: 'El código postal no puede exceder 10 caracteres' },
+            is: { args: /^[A-Z0-9]*$/i, msg: 'El código postal solo puede contener letras y números' },
+        },
+    },
+    provinciaId: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'La provincia es requerida' },
+        },
+    },
+    provinciaNombre: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        validate: {
+            len: { args: [0, 100], msg: 'El nombre de provincia no puede exceder 100 caracteres' },
+        },
+    },
+    ciudadId: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+    },
+    ciudadNombre: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        validate: {
+            len: { args: [0, 100], msg: 'El nombre de ciudad no puede exceder 100 caracteres' },
         },
     },
     activo: {

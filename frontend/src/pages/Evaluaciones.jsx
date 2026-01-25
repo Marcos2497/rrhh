@@ -1,19 +1,89 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-    getEmpleados,
-    deleteEmpleado,
-    deleteEmpleadosBulk,
-    getEmpleadoById,
-    reactivateEmpleado,
+    getEvaluaciones,
+    deleteEvaluacion,
+    deleteEvaluacionesBulk,
+    getEvaluacionById,
+    reactivateEvaluacion,
 } from '../services/api';
-import EmpleadoWizard from '../components/EmpleadoWizard';
-import EmpleadoDetail from '../components/EmpleadoDetail';
+import EvaluacionWizard from '../components/EvaluacionWizard';
+import EvaluacionDetail from '../components/EvaluacionDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
-const Empleados = () => {
+const PERIODO_LABELS = {
+    anual: 'Anual',
+    semestre_1: '1er Semestre',
+    semestre_2: '2do Semestre',
+    q1: 'Q1',
+    q2: 'Q2',
+    q3: 'Q3',
+    q4: 'Q4',
+    cierre_prueba: 'Cierre Período de Prueba',
+    fin_proyecto: 'Fin de Proyecto',
+    ad_hoc: 'Ad-hoc / Extraordinaria',
+};
+
+const TIPO_EVALUACION_LABELS = {
+    autoevaluacion: 'Autoevaluación',
+    descendente_90: '90° (Descendente)',
+    pares_jefe_180: '180° (Pares + Jefe)',
+    ascendente_270: '270° (Ascendente)',
+    integral_360: '360° (Integral)',
+    competencias: 'Por Competencias',
+    objetivos: 'Por Objetivos',
+    mixta: 'Mixta',
+    potencial: 'Potencial',
+};
+
+const ESTADO_LABELS = {
+    pendiente: 'Pendiente',
+    en_curso: 'En curso',
+    finalizada: 'Finalizada',
+    firmada: 'Firmada',
+};
+
+const ESTADO_COLORS = {
+    pendiente: '#6b7280',
+    en_curso: '#3b82f6',
+    finalizada: '#22c55e',
+    firmada: '#8b5cf6',
+};
+
+const ESCALA_LABELS = {
+    supera_expectativas: 'Supera Expectativas',
+    cumple: 'Cumple',
+    necesita_mejora: 'Necesita Mejora',
+};
+
+const ESCALA_COLORS = {
+    supera_expectativas: '#22c55e',
+    cumple: '#3b82f6',
+    necesita_mejora: '#ef4444',
+};
+
+const PERIODO_FILTER = [
+    { value: 'anual', label: 'Anual' },
+    { value: 'semestre_1', label: '1er Semestre' },
+    { value: 'semestre_2', label: '2do Semestre' },
+    { value: 'q1', label: 'Q1' },
+    { value: 'q2', label: 'Q2' },
+    { value: 'q3', label: 'Q3' },
+    { value: 'q4', label: 'Q4' },
+    { value: 'cierre_prueba', label: 'Cierre Período de Prueba' },
+    { value: 'fin_proyecto', label: 'Fin de Proyecto' },
+    { value: 'ad_hoc', label: 'Ad-hoc' },
+];
+
+const ESTADO_FILTER = [
+    { value: 'pendiente', label: 'Pendiente' },
+    { value: 'en_curso', label: 'En curso' },
+    { value: 'finalizada', label: 'Finalizada' },
+    { value: 'firmada', label: 'Firmada' },
+];
+
+const Evaluaciones = () => {
     // Data State
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -27,23 +97,23 @@ const Empleados = () => {
     const [total, setTotal] = useState(0);
 
     // Filters
-    const [searchInput, setSearchInput] = useState('');
-    const [search, setSearch] = useState('');
     const [filterActivo, setFilterActivo] = useState('true');
+    const [filterPeriodo, setFilterPeriodo] = useState('');
+    const [filterEstado, setFilterEstado] = useState('');
 
     // Selection
     const [selectedIds, setSelectedIds] = useState(new Set());
 
     // Column Visibility
     const [visibleColumns, setVisibleColumns] = useState({
-        email: true,
-        documento: true,
-        nacionalidad: true,
+        empleadoEvaluado: true,
+        puntaje: true,
+        escala: true,
     });
     const [showColumnSelector, setShowColumnSelector] = useState(false);
 
     // Modal State
-    const [showWizard, setShowWizard] = useState(false);
+    const [showForm, setShowForm] = useState(false);
     const [showDetail, setShowDetail] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -53,33 +123,17 @@ const Empleados = () => {
     const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    // Employee to Contract Flow
-    const [showContratoPrompt, setShowContratoPrompt] = useState(false);
-    const [nuevoEmpleado, setNuevoEmpleado] = useState(null);
-    const navigate = useNavigate();
-
-
-
-    // Debounce Search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setSearch(searchInput);
-            setPage(1);
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [searchInput]);
-
     // Load Items
     const loadItems = useCallback(async () => {
         try {
             setLoading(true);
-            const result = await getEmpleados({
-                nombre: search,
+            const result = await getEvaluaciones({
+                periodo: filterPeriodo,
+                estado: filterEstado,
                 activo: filterActivo,
                 page,
                 limit,
             });
-
             setItems(result.data);
             setTotalPages(result.pagination.totalPages);
             setTotal(result.pagination.total);
@@ -89,22 +143,21 @@ const Empleados = () => {
         } finally {
             setLoading(false);
         }
-    }, [search, filterActivo, page, limit]);
+    }, [filterPeriodo, filterEstado, filterActivo, page, limit]);
 
     useEffect(() => {
         loadItems();
     }, [loadItems]);
 
-
-
+    // Handlers
     const clearFilters = () => {
-        setSearchInput('');
-        setSearch('');
         setFilterActivo('true');
+        setFilterPeriodo('');
+        setFilterEstado('');
         setPage(1);
     };
 
-    const hasActiveFilters = searchInput || filterActivo !== 'true';
+    const hasActiveFilters = filterActivo !== 'true' || filterPeriodo || filterEstado;
 
     // Selection Handlers
     const handleSelectAll = (e) => {
@@ -136,16 +189,16 @@ const Empleados = () => {
     // CRUD Handlers
     const handleCreate = () => {
         setEditingItem(null);
-        setShowWizard(true);
+        setShowForm(true);
         setError('');
         setSuccess('');
     };
 
     const handleEdit = async (item) => {
         try {
-            const fullItem = await getEmpleadoById(item.id);
+            const fullItem = await getEvaluacionById(item.id);
             setEditingItem(fullItem);
-            setShowWizard(true);
+            setShowForm(true);
             setError('');
             setSuccess('');
         } catch (err) {
@@ -155,7 +208,7 @@ const Empleados = () => {
 
     const handleView = async (item) => {
         try {
-            const fullItem = await getEmpleadoById(item.id);
+            const fullItem = await getEvaluacionById(item.id);
             setSelectedItem(fullItem);
             setShowDetail(true);
         } catch (err) {
@@ -163,36 +216,19 @@ const Empleados = () => {
         }
     };
 
-    const handleCloseWizard = () => {
-        setShowWizard(false);
+    const handleCloseForm = () => {
+        setShowForm(false);
         setEditingItem(null);
     };
 
-    const handleWizardSuccess = (empleadoCreado = null) => {
-        handleCloseWizard();
+    const handleFormSuccess = () => {
+        handleCloseForm();
         if (editingItem) {
-            setSuccess('Empleado actualizado correctamente');
+            setSuccess('Evaluación actualizada correctamente');
         } else {
-            setSuccess('Empleado creado correctamente');
-            // Si es un nuevo empleado, preguntar si desea crear contrato
-            if (empleadoCreado) {
-                setNuevoEmpleado(empleadoCreado);
-                setShowContratoPrompt(true);
-            }
+            setSuccess('Evaluación creada correctamente');
         }
         loadItems();
-    };
-
-    const handleContratoPromptYes = () => {
-        setShowContratoPrompt(false);
-        // Navegar a /contratos con el empleado preseleccionado
-        navigate('/contratos', { state: { empleadoPreseleccionado: nuevoEmpleado } });
-        setNuevoEmpleado(null);
-    };
-
-    const handleContratoPromptNo = () => {
-        setShowContratoPrompt(false);
-        setNuevoEmpleado(null);
     };
 
     const handleDeleteClick = (item) => {
@@ -203,8 +239,8 @@ const Empleados = () => {
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            await deleteEmpleado(itemToDelete.id);
-            setSuccess('Empleado desactivado correctamente');
+            await deleteEvaluacion(itemToDelete.id);
+            setSuccess('Evaluación desactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -226,8 +262,8 @@ const Empleados = () => {
 
     const handleConfirmBulkDelete = async () => {
         try {
-            await deleteEmpleadosBulk(Array.from(selectedIds));
-            setSuccess(`${selectedIds.size} empleado(s) desactivado(s) correctamente`);
+            await deleteEvaluacionesBulk(Array.from(selectedIds));
+            setSuccess(`${selectedIds.size} evaluación(es) desactivada(s) correctamente`);
             setSelectedIds(new Set());
             loadItems();
         } catch (err) {
@@ -239,8 +275,8 @@ const Empleados = () => {
 
     const handleReactivate = async (item) => {
         try {
-            await reactivateEmpleado(item.id);
-            setSuccess('Empleado reactivado correctamente');
+            await reactivateEvaluacion(item.id);
+            setSuccess('Evaluación reactivada correctamente');
             loadItems();
         } catch (err) {
             setError(err.message);
@@ -249,13 +285,19 @@ const Empleados = () => {
 
     const showingInactive = filterActivo === 'false';
 
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
     return (
         <div>
             {/* Header */}
             <div className="page-header">
                 <div>
-                    <h1 className="page-title">Empleados</h1>
-                    <p className="page-subtitle">Gestiona los empleados de la organización</p>
+                    <h1 className="page-title">Evaluaciones</h1>
+                    <p className="page-subtitle">Gestiona las evaluaciones de desempeño</p>
                 </div>
             </div>
 
@@ -277,7 +319,7 @@ const Empleados = () => {
             <div className="card">
                 <div className="card-header">
                     <div className="header-left">
-                        <h3 className="card-title">Listado de Empleados</h3>
+                        <h3 className="card-title">Listado de Evaluaciones</h3>
                         <span className="selection-indicator">
                             {selectedIds.size} de {total} seleccionados
                         </span>
@@ -295,7 +337,7 @@ const Empleados = () => {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 20, height: 20 }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
-                            Nuevo Empleado
+                            Nueva Evaluación
                         </button>
                     </div>
                 </div>
@@ -303,7 +345,20 @@ const Empleados = () => {
                 {/* Filters */}
                 <div className="filters-bar">
                     <div className="filter-group">
-                        <input type="text" className="filter-input" placeholder="Buscar por nombre..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} style={{ minWidth: '200px' }} />
+                        <select className="filter-input" value={filterPeriodo} onChange={(e) => { setFilterPeriodo(e.target.value); setPage(1); }}>
+                            <option value="">Todos los períodos</option>
+                            {PERIODO_FILTER.map(p => (
+                                <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="filter-group">
+                        <select className="filter-input" value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPage(1); }}>
+                            <option value="">Todos los estados</option>
+                            {ESTADO_FILTER.map(e => (
+                                <option key={e.value} value={e.value}>{e.label}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="filter-group">
                         <select className="filter-input" value={filterActivo} onChange={(e) => { setFilterActivo(e.target.value); setPage(1); }}>
@@ -322,7 +377,7 @@ const Empleados = () => {
                             </button>
                             {showColumnSelector && (
                                 <div className="column-selector-dropdown">
-                                    {Object.entries({ email: 'Email', documento: 'Documento', nacionalidad: 'Nacionalidad' }).map(([key, label]) => (
+                                    {Object.entries({ empleadoEvaluado: 'Evaluado', puntaje: 'Puntaje', escala: 'Escala' }).map(([key, label]) => (
                                         <label key={key} className="column-option">
                                             <input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
                                             <span>{label}</span>
@@ -348,10 +403,10 @@ const Empleados = () => {
                 ) : items.length === 0 ? (
                     <div className="empty-state">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
                         </svg>
-                        <h3>No hay empleados {showingInactive ? 'inactivos' : ''}</h3>
-                        <p>{showingInactive ? 'No hay empleados desactivados' : 'Crea un nuevo empleado para comenzar'}</p>
+                        <h3>No hay evaluaciones {showingInactive ? 'inactivas' : ''}</h3>
+                        <p>{showingInactive ? 'No hay evaluaciones desactivadas' : 'Crea una nueva evaluación para comenzar'}</p>
                     </div>
                 ) : (
                     <>
@@ -362,10 +417,12 @@ const Empleados = () => {
                                         <th style={{ width: '40px' }}>
                                             <input type="checkbox" checked={allSelected} ref={input => { if (input) input.indeterminate = someSelected; }} onChange={handleSelectAll} />
                                         </th>
-                                        <th>Nombre</th>
-                                        {visibleColumns.email && <th>Email</th>}
-                                        {visibleColumns.documento && <th>Documento</th>}
-                                        {visibleColumns.nacionalidad && <th>Nacionalidad</th>}
+                                        <th>Período</th>
+                                        <th>Tipo</th>
+                                        {visibleColumns.empleadoEvaluado && <th>Evaluado</th>}
+                                        <th style={{ textAlign: 'center' }}>Estado</th>
+                                        {visibleColumns.puntaje && <th style={{ textAlign: 'center' }}>Puntaje</th>}
+                                        {visibleColumns.escala && <th style={{ textAlign: 'center' }}>Escala</th>}
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -373,10 +430,63 @@ const Empleados = () => {
                                     {items.map((item) => (
                                         <tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
                                             <td><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} /></td>
-                                            <td><strong>{item.apellido}, {item.nombre}</strong></td>
-                                            {visibleColumns.email && <td>{item.email}</td>}
-                                            {visibleColumns.documento && <td>{item.numeroDocumento}</td>}
-                                            {visibleColumns.nacionalidad && <td>{item.nacionalidad || '-'}</td>}
+                                            <td>
+                                                <strong>{PERIODO_LABELS[item.periodo] || item.periodo}</strong>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    {formatDate(item.fecha)}
+                                                </div>
+                                            </td>
+                                            <td>{TIPO_EVALUACION_LABELS[item.tipoEvaluacion] || item.tipoEvaluacion}</td>
+                                            {visibleColumns.empleadoEvaluado && (
+                                                <td>
+                                                    {item.contratoEvaluado?.empleado ? (
+                                                        <>
+                                                            <strong>{item.contratoEvaluado.empleado.apellido}, {item.contratoEvaluado.empleado.nombre}</strong>
+                                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                                {item.contratoEvaluado.puestos?.[0]?.nombre || 'Sin puesto'}
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin evaluado</span>
+                                                    )}
+                                                </td>
+                                            )}
+                                            <td style={{ textAlign: 'center' }}>
+                                                <span style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.2rem 0.5rem',
+                                                    borderRadius: '9999px',
+                                                    background: `${ESTADO_COLORS[item.estado]}20`,
+                                                    color: ESTADO_COLORS[item.estado],
+                                                    fontWeight: 600
+                                                }}>
+                                                    {ESTADO_LABELS[item.estado] || item.estado}
+                                                </span>
+                                            </td>
+                                            {visibleColumns.puntaje && (
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <strong>{item.puntaje}</strong>
+                                                </td>
+                                            )}
+                                            {visibleColumns.escala && (
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        fontSize: '0.8rem',
+                                                        padding: '0.2rem 0.5rem',
+                                                        borderRadius: '9999px',
+                                                        background: `${ESCALA_COLORS[item.escala]}20`,
+                                                        color: ESCALA_COLORS[item.escala],
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {ESCALA_LABELS[item.escala] || item.escala}
+                                                    </span>
+                                                </td>
+                                            )}
                                             <td>
                                                 <div className="table-actions">
                                                     {showingInactive ? (
@@ -441,27 +551,27 @@ const Empleados = () => {
             </div>
 
             {/* Modals */}
-            {showWizard && (
-                <EmpleadoWizard empleado={editingItem} onClose={handleCloseWizard} onSuccess={handleWizardSuccess} />
+            {showForm && (
+                <EvaluacionWizard evaluacion={editingItem} onClose={handleCloseForm} onSuccess={handleFormSuccess} />
             )}
 
             {showDetail && selectedItem && (
-                <EmpleadoDetail
-                    empleado={selectedItem}
+                <EvaluacionDetail
+                    evaluacion={selectedItem}
                     onClose={() => { setShowDetail(false); setSelectedItem(null); }}
-                    onEdit={(empleado) => {
+                    onEdit={(eval_) => {
                         setShowDetail(false);
                         setSelectedItem(null);
-                        setEditingItem(empleado);
-                        setShowWizard(true);
+                        setEditingItem(eval_);
+                        setShowForm(true);
                     }}
                 />
             )}
 
             <ConfirmDialog
                 isOpen={confirmOpen}
-                title="Desactivar empleado"
-                message={itemToDelete ? `¿Estás seguro de desactivar al empleado "${itemToDelete.nombre} ${itemToDelete.apellido}"? Podrás reactivarlo más tarde.` : ''}
+                title="Desactivar evaluación"
+                message={itemToDelete ? `¿Estás seguro de desactivar esta evaluación? Podrás reactivarla más tarde.` : ''}
                 onConfirm={handleConfirmDelete}
                 onCancel={handleCancelDelete}
                 confirmText="Desactivar"
@@ -470,26 +580,15 @@ const Empleados = () => {
 
             <ConfirmDialog
                 isOpen={confirmBulkOpen}
-                title="Desactivar empleados"
-                message={`¿Estás seguro de desactivar ${selectedIds.size} empleado(s)? Podrás reactivarlos más tarde.`}
+                title="Desactivar evaluaciones"
+                message={`¿Estás seguro de desactivar ${selectedIds.size} evaluación(es)? Podrás reactivarlas más tarde.`}
                 onConfirm={handleConfirmBulkDelete}
                 onCancel={() => setConfirmBulkOpen(false)}
                 confirmText="Desactivar todos"
                 variant="danger"
             />
-
-            {/* Prompt para crear contrato después de crear empleado */}
-            <ConfirmDialog
-                isOpen={showContratoPrompt}
-                title="¿Registrar contrato?"
-                message={nuevoEmpleado ? `El empleado "${nuevoEmpleado.nombre} ${nuevoEmpleado.apellido}" fue creado exitosamente. ¿Deseas registrar un contrato para este empleado ahora?` : ''}
-                onConfirm={handleContratoPromptYes}
-                onCancel={handleContratoPromptNo}
-                confirmText="Sí, crear contrato"
-                cancelText="No, más tarde"
-            />
         </div>
     );
 };
 
-export default Empleados;
+export default Evaluaciones;

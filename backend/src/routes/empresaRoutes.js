@@ -3,10 +3,12 @@ const router = express.Router();
 const empresaController = require('../controllers/empresaController');
 
 router.get('/', empresaController.getAll);
+router.get('/check-can-delete/:type/:id', empresaController.checkCanDelete);
 router.get('/:id', empresaController.getById);
 router.post('/', empresaController.create);
 router.put('/:id', empresaController.update);
 router.delete('/bulk', empresaController.removeBulk);
 router.delete('/:id', empresaController.remove);
+router.patch('/:id/reactivate', empresaController.reactivate);
 
 module.exports = router;

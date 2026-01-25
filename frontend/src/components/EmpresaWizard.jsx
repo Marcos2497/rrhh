@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
-import { createEmpresa, updateEmpresa } from '../services/api';
+import { createEmpresa, updateEmpresa, checkCanDeleteEmpresaItem } from '../services/api';
 
 const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const [step, setStep] = useState(1);
@@ -74,9 +74,22 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         setErrors(prev => ({ ...prev, areaNombre: '' }));
     };
 
-    const removeArea = (id) => {
+    const removeArea = async (id) => {
+        // Only check with backend if this is an existing area (numeric id from DB)
+        if (isEditing && typeof id === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('area', id);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
         setEmpresa(prev => ({ ...prev, areas: prev.areas.filter(a => a.id !== id) }));
         if (selectedAreaId === id) setSelectedAreaId(null);
+        setErrors({});
     };
 
     const addDepto = () => {
@@ -98,7 +111,19 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         setErrors(prev => ({ ...prev, deptoNombre: '' }));
     };
 
-    const removeDepto = (areaId, deptoId) => {
+    const removeDepto = async (areaId, deptoId) => {
+        // Only check with backend if this is an existing departamento (numeric id from DB)
+        if (isEditing && typeof deptoId === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('departamento', deptoId);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
         setEmpresa(prev => ({
             ...prev,
             areas: prev.areas.map(area => {
@@ -109,6 +134,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
             })
         }));
         if (selectedDeptoId === deptoId) setSelectedDeptoId(null);
+        setErrors({});
     };
 
     const addPuesto = () => {
@@ -133,7 +159,19 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         setErrors(prev => ({ ...prev, puestoNombre: '' }));
     };
 
-    const removePuesto = (deptoId, puestoId) => {
+    const removePuesto = async (deptoId, puestoId) => {
+        // Only check with backend if this is an existing puesto (numeric id from DB)
+        if (isEditing && typeof puestoId === 'number') {
+            try {
+                const result = await checkCanDeleteEmpresaItem('puesto', puestoId);
+                if (!result.canDelete) {
+                    setErrors({ general: result.message });
+                    return;
+                }
+            } catch (err) {
+                console.error('Error checking delete:', err);
+            }
+        }
         setEmpresa(prev => ({
             ...prev,
             areas: prev.areas.map(area => ({
@@ -146,6 +184,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                 })
             }))
         }));
+        setErrors({});
     };
 
     const validateStep = () => {
@@ -158,15 +197,27 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
             else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) newErrors.email = 'El email no es válido';
             else if (empresa.email.length < 5 || empresa.email.length > 100) newErrors.email = 'El email debe tener entre 5 y 100 caracteres';
 
+            // Validación de teléfono (opcional pero con formato si se ingresa)
+            if (empresa.telefono && !/^[0-9+\-\s()]*$/.test(empresa.telefono)) {
+                newErrors.telefono = 'El teléfono solo puede contener números, +, -, espacios y paréntesis';
+            } else if (empresa.telefono && empresa.telefono.length > 50) {
+                newErrors.telefono = 'El teléfono no puede exceder 50 caracteres';
+            }
+
             if (!empresa.industria.trim()) newErrors.industria = 'La industria es requerida';
             else if (empresa.industria.length < 2 || empresa.industria.length > 100) newErrors.industria = 'La industria debe tener entre 2 y 100 caracteres';
 
             if (!empresa.direccion.trim()) newErrors.direccion = 'La dirección es requerida';
             else if (empresa.direccion.length < 5 || empresa.direccion.length > 255) newErrors.direccion = 'La dirección debe tener entre 5 y 255 caracteres';
+
+            // Add general error message if any field has errors
+            if (Object.keys(newErrors).length > 0) {
+                newErrors.general = 'Por favor completa todos los campos obligatorios';
+            }
         }
         if (step === 2 && empresa.areas.length === 0) newErrors.general = 'Debes agregar al menos un área para continuar';
         setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+        return Object.keys(newErrors).filter(k => k !== 'general').length === 0 && !newErrors.general;
     };
 
     const nextStep = () => { if (validateStep()) { setStep(s => s + 1); setErrors({}); } };
@@ -186,16 +237,40 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         if (!validateFinalSubmit()) return;
         try {
             setLoading(true);
-            const payload = {
-                ...empresa,
-                areas: empresa.areas.map(({ id, departamentos, ...areaRest }) => ({
-                    ...areaRest,
-                    departamentos: departamentos.map(({ id, puestos, ...deptoRest }) => ({
-                        ...deptoRest,
-                        puestos: puestos.map(({ id, ...puestoRest }) => puestoRest)
+            let payload;
+
+            if (isEditing) {
+                // When editing, include IDs to preserve existing items
+                payload = {
+                    ...empresa,
+                    areas: empresa.areas.map(area => ({
+                        id: area.id, // Keep the ID for existing areas
+                        nombre: area.nombre,
+                        departamentos: area.departamentos.map(depto => ({
+                            id: depto.id, // Keep the ID for existing departamentos
+                            nombre: depto.nombre,
+                            puestos: depto.puestos.map(puesto => ({
+                                id: puesto.id, // Keep the ID for existing puestos
+                                nombre: puesto.nombre,
+                                descripcion: puesto.descripcion
+                            }))
+                        }))
                     }))
-                }))
-            };
+                };
+            } else {
+                // When creating, don't include IDs
+                payload = {
+                    ...empresa,
+                    areas: empresa.areas.map(({ id, departamentos, ...areaRest }) => ({
+                        ...areaRest,
+                        departamentos: departamentos.map(({ id, puestos, ...deptoRest }) => ({
+                            ...deptoRest,
+                            puestos: puestos.map(({ id, ...puestoRest }) => puestoRest)
+                        }))
+                    }))
+                };
+            }
+
             if (isEditing) {
                 await updateEmpresa(empresaToEdit.id, payload);
             } else {
@@ -203,7 +278,28 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
             }
             onSuccess();
         } catch (err) {
-            setErrors({ submit: err.message });
+            const errorMessage = err.message.toLowerCase();
+            // Detect step 1 field errors (nombre, email, industria, direccion)
+            const step1Fields = ['nombre', 'email', 'industria', 'direccion', 'dirección'];
+            const isStep1Error = step1Fields.some(field => errorMessage.includes(field));
+
+            if (isStep1Error) {
+                setStep(1);
+                const newErrors = { submit: err.message };
+                if (errorMessage.includes('email')) {
+                    if (errorMessage.includes('unique') || errorMessage.includes('existe') || errorMessage.includes('duplicado') || errorMessage.includes('registrado')) {
+                        newErrors.email = 'Este email ya está registrado';
+                    } else {
+                        newErrors.email = 'Debe ser un email válido';
+                    }
+                }
+                if (errorMessage.includes('nombre')) {
+                    newErrors.nombre = err.message;
+                }
+                setErrors(newErrors);
+            } else {
+                setErrors({ submit: err.message });
+            }
         } finally {
             setLoading(false);
         }
@@ -258,55 +354,64 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     };
 
     const renderStep1 = () => (
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <div>
+            <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Información de la Empresa</h3>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Ingresa los datos básicos de la empresa</p>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Nombre de la Empresa <span className="required">*</span></label>
-                <input type="text" name="nombre" className={`form-input ${errors.nombre ? 'error' : ''}`}
-                    value={empresa.nombre} onChange={handleInfoChange} placeholder="Ej: Tech Solutions S.A." autoFocus />
-                {errors.nombre && <span className="form-error">{errors.nombre}</span>}
+            {(errors.submit || errors.general) && (<div className="alert alert-error" style={{ marginBottom: '1.5rem', }}>{errors.submit || errors.general}</div>)}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                    <label className="form-label">Nombre de la Empresa *</label>
+                    <input type="text" name="nombre" className={`form-input ${errors.nombre ? 'input-error' : ''}`}
+                        value={empresa.nombre} onChange={handleInfoChange} placeholder="Ej: Tech Solutions S.A." autoFocus />
+                    {errors.nombre && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.nombre}</span>}
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Email Corporativo *</label>
+                    <input type="email" name="email" className={`form-input ${errors.email ? 'input-error' : ''}`}
+                        value={empresa.email} onChange={handleInfoChange} placeholder="Ej: contacto@empresa.com" />
+                    {errors.email && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.email}</span>}
+                </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Email Corporativo <span className="required">*</span></label>
-                <input type="email" name="email" className={`form-input ${errors.email ? 'error' : ''}`}
-                    value={empresa.email} onChange={handleInfoChange} placeholder="Ej: contacto@empresa.com" />
-                {errors.email && <span className="form-error">{errors.email}</span>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                    <label className="form-label">Teléfono</label>
+                    <input type="tel" name="telefono" className={`form-input ${errors.telefono ? 'input-error' : ''}`} value={empresa.telefono} onChange={handleInfoChange} placeholder="Ej: +54 11 1234-5678" />
+                    {errors.telefono && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.telefono}</span>}
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Industria / Sector *</label>
+                    <input type="text" name="industria" className={`form-input ${errors.industria ? 'input-error' : ''}`}
+                        value={empresa.industria} onChange={handleInfoChange} placeholder="Ej: Tecnología, Salud..." />
+                    {errors.industria && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.industria}</span>}
+                </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Teléfono</label>
-                <input type="tel" name="telefono" className="form-input" value={empresa.telefono} onChange={handleInfoChange} placeholder="Ej: +54 11 1234-5678" />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Industria / Sector <span className="required">*</span></label>
-                <input type="text" name="industria" className={`form-input ${errors.industria ? 'error' : ''}`}
-                    value={empresa.industria} onChange={handleInfoChange} placeholder="Ej: Tecnología, Salud, Finanzas..." />
-                {errors.industria && <span className="form-error">{errors.industria}</span>}
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Dirección <span className="required">*</span></label>
-                <textarea name="direccion" className={`form-input ${errors.direccion ? 'error' : ''}`}
-                    value={empresa.direccion} onChange={handleInfoChange} placeholder="Ej: Calle Falsa 123, Ciudad" rows={3} />
-                {errors.direccion && <span className="form-error">{errors.direccion}</span>}
+            <div className="form-group">
+                <label className="form-label">Dirección *</label>
+                <input type="text" name="direccion" className={`form-input ${errors.direccion ? 'input-error' : ''}`}
+                    value={empresa.direccion} onChange={handleInfoChange} placeholder="Ej: Calle Falsa 123, Ciudad" />
+                {errors.direccion && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.direccion}</span>}
             </div>
         </div>
     );
 
     const renderStep2 = () => (
         <div>
-            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+            <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Áreas de la Empresa</h3>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define las áreas principales que componen tu organización</p>
             </div>
 
-            {errors.general && <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>{errors.general}</div>}
+            {errors.general && (
+                <div className="alert alert-error">
+                    {errors.general}
+                </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                 <div>
@@ -358,10 +463,16 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
         return (
             <div>
-                <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+                <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
                     <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Departamentos por Área</h3>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Organiza cada área en departamentos específicos</p>
                 </div>
+
+                {errors.general && (
+                    <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        {errors.general}
+                    </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     <div>
@@ -432,10 +543,16 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
         return (
             <div>
-                <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+                <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
                     <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Puestos por Departamento</h3>
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Define los puestos de trabajo para cada departamento</p>
                 </div>
+
+                {errors.general && (
+                    <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+                        {errors.general}
+                    </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     <div>
@@ -513,7 +630,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
 
     const renderStep5 = () => (
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+            <div style={{ marginTop: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Resumen de Estructura Organizacional</h3>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Revisa la estructura completa antes de crear la empresa</p>
             </div>
@@ -586,8 +703,8 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     );
 
     return (
-        <div className="modal-overlay" onClick={step === 1 ? onClose : undefined}>
-            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '950px', maxHeight: '90vh', width: '95%' }}>
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '950px' }}>
                 <div className="modal-header">
                     <h2 className="modal-title">{isEditing ? 'Editar' : 'Nueva'} Empresa</h2>
                     <button className="modal-close" onClick={onClose}>
@@ -597,34 +714,41 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                     </button>
                 </div>
 
-                <div className="modal-body" style={{ padding: '2rem', maxHeight: 'calc(90vh - 100px)', overflowY: 'auto' }}>
-                    {/* Step Tracker ahora dentro del body para un solo scroll */}
-                    <div style={{ marginBottom: '2rem' }}>
-                        <StepTracker currentStep={step} totalSteps={5} />
-                    </div>
+                <div className="modal-body" style={{ padding: '2rem' }}>
+                    <StepTracker currentStep={step} totalSteps={5} />
 
                     {step === 1 && renderStep1()}
                     {step === 2 && renderStep2()}
                     {step === 3 && renderStep3()}
                     {step === 4 && renderStep4()}
                     {step === 5 && renderStep5()}
+                </div>
 
-                    {/* Botones dentro del formulario, alineados a la izquierda */}
-                    <div className="form-actions">
-                        <button className="btn btn-secondary" onClick={step === 1 ? onClose : prevStep}>
-                            {step === 1 ? 'Cancelar' : '← Atrás'}
+                <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 2rem', borderTop: '1px solid var(--border-color)' }}>
+                    <div>
+                        {step > 1 && (
+                            <button className="btn btn-secondary" onClick={prevStep}>
+                                Anterior
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button className="btn btn-secondary" onClick={onClose}>
+                            Cancelar
                         </button>
                         {step < 5 ? (
-                            <button className="btn btn-primary" onClick={nextStep}>Siguiente →</button>
+                            <button className="btn btn-primary" onClick={nextStep}>
+                                Siguiente
+                            </button>
                         ) : (
                             <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-                                {loading ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Actualizar Empresa' : 'Confirmar y Crear Empresa')}
+                                {loading ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear')} Empresa
                             </button>
                         )}
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

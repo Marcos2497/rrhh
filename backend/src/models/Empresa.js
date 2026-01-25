@@ -18,6 +18,7 @@ const Empresa = sequelize.define('Empresa', {
     email: {
         type: DataTypes.STRING(100),
         allowNull: false,
+        unique: true,
         validate: {
             notEmpty: { msg: 'El email es requerido' },
             isEmail: { msg: 'Debe ser un email válido' },
@@ -29,6 +30,10 @@ const Empresa = sequelize.define('Empresa', {
         allowNull: true,
         validate: {
             len: { args: [0, 50], msg: 'El teléfono no puede exceder 50 caracteres' },
+            is: {
+                args: /^[0-9+\-\s()]*$/,
+                msg: 'El teléfono solo puede contener números, +, -, espacios y paréntesis',
+            },
         },
     },
     industria: {
@@ -46,6 +51,11 @@ const Empresa = sequelize.define('Empresa', {
             notEmpty: { msg: 'La dirección es requerida' },
             len: { args: [5, 255], msg: 'La dirección debe tener entre 5 y 255 caracteres' },
         },
+    },
+    activo: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
     },
 }, {
     tableName: 'empresas',
