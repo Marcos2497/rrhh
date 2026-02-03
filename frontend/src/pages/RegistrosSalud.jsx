@@ -246,23 +246,6 @@ const RegistrosSalud = () => {
 
     const showingInactive = filterActivo === 'false';
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    const getEstadoVencimiento = (fechaVencimiento) => {
-        if (!fechaVencimiento) return { color: '#6b7280', label: 'Sin vencimiento', dias: null };
-        const vencimiento = new Date(fechaVencimiento);
-        const now = new Date();
-        const diffDays = Math.ceil((vencimiento - now) / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) return { color: '#ef4444', label: 'Vencido', dias: null };
-        if (diffDays <= 30) return { color: '#f59e0b', label: 'Vence pronto', dias: diffDays };
-        return { color: '#22c55e', label: 'Vigente', dias: diffDays };
-    };
-
     return (
         <div>
             {/* Header */}
@@ -398,7 +381,6 @@ const RegistrosSalud = () => {
                                 </thead>
                                 <tbody>
                                     {items.map((item) => {
-                                        const estadoVenc = getEstadoVencimiento(item.fechaVencimiento);
                                         return (
                                             <tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
                                                 <td><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} /></td>
@@ -436,24 +418,37 @@ const RegistrosSalud = () => {
                                                 )}
                                                 {visibleColumns.estado && (
                                                     <td>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-                                                            <span style={{
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                fontSize: '0.8rem',
-                                                                padding: '0.2rem 0.5rem',
-                                                                borderRadius: '9999px',
-                                                                background: `${estadoVenc.color}20`,
-                                                                color: estadoVenc.color,
-                                                                fontWeight: 600
-                                                            }}>
-                                                                {estadoVenc.label}
-                                                            </span>
-                                                            {estadoVenc.dias !== null && (
-                                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                                                    {estadoVenc.dias} días restantes
+                                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '0.4rem',
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.6rem',
+                                                                    borderRadius: '9999px',
+                                                                    background: item.vigente ? '#22c55e20' : '#ef444420',
+                                                                    color: item.vigente ? '#22c55e' : '#ef4444',
+                                                                    fontWeight: 700
+                                                                }}>
+                                                                    {item.vigente ? 'Vigente' : 'Vencido'}
                                                                 </span>
-                                                            )}
+                                                                {item.vigente && item.fechaVencimiento && (() => {
+                                                                    const vencimiento = new Date(item.fechaVencimiento);
+                                                                    const now = new Date();
+                                                                    now.setHours(0, 0, 0, 0);
+                                                                    vencimiento.setHours(0, 0, 0, 0);
+                                                                    const diffDays = Math.ceil((vencimiento - now) / (1000 * 60 * 60 * 24));
+                                                                    if (diffDays >= 0) {
+                                                                        return (
+                                                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                                                                                {diffDays} días restantes
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    return null;
+                                                                })()}
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 )}

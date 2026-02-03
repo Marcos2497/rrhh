@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Períodos de evaluación
 const PERIODOS = [
@@ -156,11 +157,17 @@ const Evaluacion = sequelize.define('Evaluacion', {
 Evaluacion.addHook('beforeValidate', (evaluacion) => {
     // Validar que la fecha no sea futura
     if (evaluacion.fecha) {
-        const fechaEval = new Date(evaluacion.fecha);
+        const fechaEval = parseLocalDate(evaluacion.fecha);
+        fechaEval.setHours(0, 0, 0, 0);
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
         if (fechaEval > hoy) {
-            throw new Error('La fecha no puede ser futura');
+            throw new Error('La fecha de la evaluación no puede ser futura');
+        }
+
+        // Validar día hábil
+        if (!esDiaHabil(evaluacion.fecha)) {
+            throw new Error('La fecha de la evaluación debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
     }
 

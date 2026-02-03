@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Estados de renuncia
 const ESTADOS_RENUNCIA = [
@@ -67,11 +68,6 @@ const Renuncia = sequelize.define('Renuncia', {
             len: { args: [0, 100], msg: 'La URL no puede exceder 100 caracteres' },
         },
     },
-    preaviso: {
-        type: DataTypes.BOOLEAN,
-        allowNull: true,
-        defaultValue: null,
-    },
     estado: {
         type: DataTypes.ENUM(...ESTADOS_RENUNCIA),
         allowNull: false,
@@ -95,21 +91,34 @@ Renuncia.addHook('beforeValidate', (renuncia) => {
 
     // Validar que la fecha de notificación no sea futura
     if (renuncia.fechaNotificacion) {
-        const fechaNotificacion = new Date(renuncia.fechaNotificacion);
+        const fechaNotificacion = parseLocalDate(renuncia.fechaNotificacion);
         fechaNotificacion.setHours(0, 0, 0, 0);
         if (fechaNotificacion > today) {
             throw new Error('La fecha de notificación no puede ser futura');
+        }
+
+        // Validar día hábil
+        if (!esDiaHabil(renuncia.fechaNotificacion)) {
+            throw new Error('La fecha de notificación debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
     }
 
     // Validar que fecha de baja sea >= fecha de notificación (si se proporciona)
     if (renuncia.fechaBajaEfectiva && renuncia.fechaNotificacion) {
-        const notificacion = new Date(renuncia.fechaNotificacion);
-        const baja = new Date(renuncia.fechaBajaEfectiva);
+        const notificacion = parseLocalDate(renuncia.fechaNotificacion);
+        notificacion.setHours(0, 0, 0, 0);
+        const baja = parseLocalDate(renuncia.fechaBajaEfectiva);
+        baja.setHours(0, 0, 0, 0);
 
         if (baja < notificacion) {
             throw new Error('La fecha de baja efectiva debe ser mayor o igual a la fecha de notificación');
         }
+
+        // Validar día hábil
+        while (!esDiaHabil(baja.toISOString().split('T')[0])) {
+            baja.setDate(baja.getDate() + 1);
+        }
+        renuncia.fechaBajaEfectiva = baja.toISOString().split('T')[0];
     }
 });
 

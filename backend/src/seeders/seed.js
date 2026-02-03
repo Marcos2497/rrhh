@@ -275,83 +275,80 @@ const runSeed = async () => {
         // ==========================================
         // CONTRATOS (sin validaciones de fecha)
         // ==========================================
-        // Deshabilitamos temporalmente las validaciones de fecha
-        const today = new Date();
-        const futureDate = new Date(today);
-        futureDate.setDate(today.getDate() + 1);
-        const futureDateStr = futureDate.toISOString().split('T')[0];
-
-        const endDate = new Date(today);
-        endDate.setFullYear(today.getFullYear() + 1);
-        const endDateStr = endDate.toISOString().split('T')[0];
 
         // Crear contratos usando create individual para bypass validation
         const contratosData = [
             {
                 empleadoId: empleados[0].id,
                 tipoContrato: 'tiempo_indeterminado',
-                fechaInicio: futureDateStr,
-                fechaFin: null,
+                fechaInicio: '2025-01-01',
+                fechaFin: '2026-01-29',
                 horario: 'Lunes a Viernes 9:00 a 18:00',
                 salario: 150000.00,
                 compensacion: 'Bono anual + OSDE 310',
+                estado: 'finalizado',
                 activo: true,
             },
             {
                 empleadoId: empleados[1].id,
                 tipoContrato: 'tiempo_indeterminado',
-                fechaInicio: futureDateStr,
+                fechaInicio: '2024-01-01',
                 fechaFin: null,
                 horario: 'Lunes a Viernes 9:00 a 18:00',
                 salario: 180000.00,
                 compensacion: 'Bono anual + OSDE 410 + Home Office',
+                estado: 'en_curso',
                 activo: true,
             },
             {
                 empleadoId: empleados[2].id,
                 tipoContrato: 'plazo_fijo',
-                fechaInicio: futureDateStr,
-                fechaFin: endDateStr,
+                fechaInicio: '2020-01-01',
+                fechaFin: '2027-01-01',
                 horario: 'Lunes a Viernes 8:00 a 17:00',
                 salario: 120000.00,
                 compensacion: 'OSDE 210',
+                estado: 'en_curso',
                 activo: true,
             },
             {
                 empleadoId: empleados[3].id,
                 tipoContrato: 'tiempo_indeterminado',
-                fechaInicio: futureDateStr,
+                fechaInicio: '2010-01-01',
                 fechaFin: null,
                 horario: 'Lunes a Viernes 10:00 a 19:00',
                 salario: 95000.00,
                 compensacion: 'Obra social + Almuerzo',
+                estado: 'en_curso',
                 activo: true,
             },
             {
                 empleadoId: empleados[4].id,
                 tipoContrato: 'pasantia_educativa',
-                fechaInicio: futureDateStr,
-                fechaFin: endDateStr,
+                fechaInicio: '1990-01-01',
+                fechaFin: '2030-01-01',
                 horario: 'Lunes a Viernes 9:00 a 13:00',
                 salario: 45000.00,
                 compensacion: 'ART + Viáticos',
+                estado: 'en_curso',
                 activo: true,
             },
             {
                 empleadoId: empleados[5].id,
                 tipoContrato: 'periodo_prueba',
-                fechaInicio: futureDateStr,
-                fechaFin: endDateStr,
+                fechaInicio: '2026-01-02',
+                fechaFin: null,
                 horario: 'Lunes a Viernes 9:00 a 18:00',
                 salario: 110000.00,
                 compensacion: 'OSDE 210 + Gimnasio',
+                estado: 'pendiente',
                 activo: true,
             },
         ];
 
         const contratos = [];
         for (const contratoData of contratosData) {
-            const contrato = await Contrato.create(contratoData);
+            const contrato = await Contrato.create(contratoData, { validate: false, hooks: false });
             contratos.push(contrato);
         }
 
@@ -399,6 +396,7 @@ const runSeed = async () => {
                 resultado: 'apto',
                 fechaRealizacion: fechaRealizacionStr,
                 fechaVencimiento: fechaVencimientoStr,
+                vigente: true,
                 activo: true,
             },
             {
@@ -407,6 +405,7 @@ const runSeed = async () => {
                 resultado: 'apto',
                 fechaRealizacion: fechaRealizacionStr,
                 fechaVencimiento: fechaVencimientoStr,
+                vigente: true,
                 activo: true,
             },
             {
@@ -415,6 +414,7 @@ const runSeed = async () => {
                 resultado: 'apto_preexistencias',
                 fechaRealizacion: fechaRealizacionStr,
                 fechaVencimiento: fechaVencimientoCortaStr,
+                vigente: true,
                 activo: true,
             },
             {
@@ -423,6 +423,7 @@ const runSeed = async () => {
                 resultado: 'apto',
                 fechaRealizacion: fechaRealizacionAnteriorStr,
                 fechaVencimiento: fechaVencidaStr, // Vencido
+                vigente: false, // Vencido
                 activo: true,
             },
             {
@@ -431,6 +432,7 @@ const runSeed = async () => {
                 resultado: 'apto',
                 fechaRealizacion: fechaRealizacionStr,
                 fechaVencimiento: fechaVencimientoStr,
+                vigente: true,
                 activo: true,
             },
             {
@@ -439,10 +441,11 @@ const runSeed = async () => {
                 resultado: 'apto',
                 fechaRealizacion: fechaRealizacionStr,
                 fechaVencimiento: fechaVencimientoStr,
+                vigente: true,
                 activo: true,
             },
         ];
-        await RegistroSalud.bulkCreate(registrosSaludData);
+        await RegistroSalud.bulkCreate(registrosSaludData, { validate: false, hooks: false });
 
         // ==========================================
         // EVALUACIONES

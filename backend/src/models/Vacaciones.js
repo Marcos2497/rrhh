@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Estados de vacaciones
 const ESTADOS_VACACIONES = [
@@ -36,6 +37,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
         allowNull: false,
         validate: {
             min: { args: [1], msg: 'Los días correspondientes deben ser mayor a 0' },
+            max: { args: [35], msg: 'Los días correspondientes no pueden superar 35' },
         },
     },
     diasTomados: {
@@ -44,6 +46,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
         defaultValue: 0,
         validate: {
             min: { args: [0], msg: 'Los días tomados no pueden ser negativos' },
+            max: { args: [35], msg: 'Los días tomados no pueden superar 35' },
         },
     },
     diasDisponibles: {
@@ -51,6 +54,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
         allowNull: false,
         validate: {
             min: { args: [0], msg: 'Los días disponibles no pueden ser negativos' },
+            max: { args: [35], msg: 'Los días disponibles no pueden superar 35' },
         },
     },
     fechaInicio: {
@@ -89,6 +93,7 @@ const Vacaciones = sequelize.define('Vacaciones', {
         allowNull: false,
         validate: {
             min: { args: [1], msg: 'Los días solicitados deben ser mayor a 0' },
+            max: { args: [35], msg: 'Los días solicitados no pueden superar 35' },
         },
     },
     descripcion: {
@@ -137,20 +142,31 @@ Vacaciones.addHook('beforeValidate', (vacaciones) => {
     today.setHours(0, 0, 0, 0);
 
     if (vacaciones.fechaInicio) {
-        const fechaInicio = new Date(vacaciones.fechaInicio);
+        const fechaInicio = parseLocalDate(vacaciones.fechaInicio);
         fechaInicio.setHours(0, 0, 0, 0);
-        // La fecha de hoy es válida, solo rechazamos fechas estrictamente pasadas
         if (fechaInicio < today) {
             throw new Error('La fecha de inicio no puede ser anterior a hoy');
+        }
+
+        // Validar día hábil
+        if (!esDiaHabil(vacaciones.fechaInicio)) {
+            throw new Error('La fecha de inicio debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
     }
 
     if (vacaciones.fechaFin && vacaciones.fechaInicio) {
-        const inicio = new Date(vacaciones.fechaInicio);
-        const fin = new Date(vacaciones.fechaFin);
+        const inicio = parseLocalDate(vacaciones.fechaInicio);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = parseLocalDate(vacaciones.fechaFin);
+        fin.setHours(0, 0, 0, 0);
 
         if (fin <= inicio) {
             throw new Error('La fecha de fin debe ser posterior a la fecha de inicio');
+        }
+
+        // Validar día hábil
+        if (!esDiaHabil(vacaciones.fechaFin)) {
+            throw new Error('La fecha de fin debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
 
         // Calcular días solicitados (incluyendo inicio y fin)
@@ -168,10 +184,24 @@ Vacaciones.addHook('beforeValidate', (vacaciones) => {
 
     // Validar notificadoEl no sea futura
     if (vacaciones.notificadoEl) {
-        const notificado = new Date(vacaciones.notificadoEl);
+        const notificado = parseLocalDate(vacaciones.notificadoEl);
+        notificado.setHours(0, 0, 0, 0);
         if (notificado > today) {
             throw new Error('La fecha de notificación no puede ser futura');
         }
+
+        // Validar día hábil
+        if (!esDiaHabil(vacaciones.notificadoEl)) {
+            throw new Error('La fecha de notificación debe ser un día hábil (lunes a viernes, excluyendo feriados)');
+        }
+    }
+});
+
+// Hook para auto-completar notificadoEl cuando se aprueba
+Vacaciones.addHook('beforeUpdate', (vacaciones) => {
+    // Si cambia a 'aprobada' y no tiene notificadoEl, asignar hoy
+    if (vacaciones.changed('estado') && vacaciones.estado === 'aprobada' && !vacaciones.notificadoEl) {
+        vacaciones.notificadoEl = new Date().toISOString().split('T')[0];
     }
 });
 

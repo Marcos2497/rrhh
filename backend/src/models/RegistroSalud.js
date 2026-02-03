@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Tipos de examen médico
 const TIPOS_EXAMEN = [
@@ -60,6 +61,11 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
             isDate: { msg: 'Debe ser una fecha válida' },
         },
     },
+    vigente: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+    },
     comprobante: {
         type: DataTypes.TEXT, // Base64 encoded file (legacy single file)
         allowNull: true,
@@ -110,8 +116,44 @@ const RegistroSalud = sequelize.define('RegistroSalud', {
 // Hook para validar que fechaVencimiento no sea anterior a fechaRealizacion
 RegistroSalud.addHook('beforeValidate', (registro) => {
     if (registro.fechaVencimiento && registro.fechaRealizacion) {
-        if (new Date(registro.fechaVencimiento) < new Date(registro.fechaRealizacion)) {
-            throw new Error('La fecha de vencimiento no puede ser anterior a la fecha de realización');
+        const fechaVencimiento = parseLocalDate(registro.fechaVencimiento);
+        const fechaRealizacion = parseLocalDate(registro.fechaRealizacion);
+        fechaVencimiento.setHours(0, 0, 0, 0);
+        fechaRealizacion.setHours(0, 0, 0, 0);
+        if (fechaVencimiento < fechaRealizacion) {
+            throw new Error('La fecha de vencimiento debe ser mayor o igual a la fecha de realización');
+        }
+
+        // Validar días hábiles
+        if (!esDiaHabil(registro.fechaRealizacion)) {
+            throw new Error('La fecha de realización debe ser un día hábil (lunes a viernes, excluyendo feriados)');
+        }
+        if (!esDiaHabil(registro.fechaVencimiento)) {
+            throw new Error('La fecha de vencimiento debe ser un día hábil (lunes a viernes, excluyendo feriados)');
+        }
+    }
+});
+
+RegistroSalud.addHook('beforeCreate', (registro) => {
+    if (registro.fechaVencimiento) {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaVencimiento = parseLocalDate(registro.fechaVencimiento);
+        fechaVencimiento.setHours(0, 0, 0, 0);
+        if (fechaVencimiento < hoy) {
+            registro.vigente = false;
+        }
+    }
+});
+
+RegistroSalud.addHook('beforeSave', (registro) => {
+    if (registro.fechaVencimiento) {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaVencimiento = parseLocalDate(registro.fechaVencimiento);
+        fechaVencimiento.setHours(0, 0, 0, 0);
+        if (fechaVencimiento < hoy) {
+            registro.vigente = false;
         }
     }
 });

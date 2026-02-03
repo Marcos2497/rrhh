@@ -6,10 +6,10 @@ const solicitudController = require('../controllers/solicitudController');
 router.get('/', solicitudController.getAll);
 
 // GET vacation days for a contract
-router.get('/vacaciones/dias/:contratoId', solicitudController.getVacacionesDias);
+router.get('/vacaciones/diasDisponibles/:contratoId', solicitudController.getDiasDisponiblesVacaciones);
 
-// GET Argentine holidays
-router.get('/feriados/:year', solicitudController.getFeriados);
+// GET vacation days for a contract
+router.get('/vacaciones/diasSolicitados', solicitudController.getDiasSolicitadosVacaciones);
 
 // GET solicitud by ID
 router.get('/:id', solicitudController.getById);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
 import { getEmpleados, createRegistroSalud, updateRegistroSalud } from '../services/api';
+import { validarDiaHabil } from '../utils/diasHabiles';
 
 const TIPOS_EXAMEN = [
     { value: 'pre_ocupacional', label: 'Pre-Ocupacional' },
@@ -185,9 +186,24 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
         validateStep();
     };
 
-    const handleChange = (field, value) => {
+    const handleChange = (field, value) => { // ✅ Síncrono ahora
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
+
+        // Validar días hábiles en tiempo real SÍNCRONO
+        if ((field === 'fechaRealizacion' || field === 'fechaVencimiento') && value) {
+            try {
+                const nombreCampo = field === 'fechaRealizacion'
+                    ? 'La fecha de realización'
+                    : 'La fecha de vencimiento';
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [field]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [field]: error.message }));
+                setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
+            }
+        }
+
         if (touched[field]) validateStep();
     };
 
@@ -250,7 +266,21 @@ const RegistroSaludWizard = ({ registro, onClose, onSuccess }) => {
         }
         // Step 2 has no required fields (comprobantes are optional)
 
-        setFieldErrors(errors);
+        // Preservar solo los errores de días hábiles de campos de fecha
+        setFieldErrors(prev => {
+            const camposFecha = ['fechaRealizacion', 'fechaVencimiento'];
+            const erroresDiasHabiles = {};
+
+            // Preservar errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            return { ...erroresDiasHabiles, ...errors };
+        });
 
         if (Object.keys(errors).length > 0) {
             const allTouched = {};

@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Motivos legales de licencia/inasistencia
 const MOTIVOS_LEGALES = [
@@ -143,11 +144,21 @@ const Licencia = sequelize.define('Licencia', {
 // Hook para validar fechas y calcular días
 Licencia.addHook('beforeValidate', (licencia) => {
     if (licencia.fechaFin && licencia.fechaInicio) {
-        const inicio = new Date(licencia.fechaInicio);
-        const fin = new Date(licencia.fechaFin);
+        const inicio = parseLocalDate(licencia.fechaInicio);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = parseLocalDate(licencia.fechaFin);
+        fin.setHours(0, 0, 0, 0);
 
         if (fin < inicio) {
             throw new Error('La fecha de fin debe ser mayor o igual a la fecha de inicio');
+        }
+
+        // Validar días hábiles
+        if (!esDiaHabil(licencia.fechaInicio)) {
+            throw new Error('La fecha de inicio debe ser un día hábil (lunes a viernes, excluyendo feriados)');
+        }
+        if (!esDiaHabil(licencia.fechaFin)) {
+            throw new Error('La fecha de fin debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
 
         // Calcular días (incluyendo inicio y fin)
@@ -166,3 +177,4 @@ Licencia.addHook('beforeValidate', (licencia) => {
 });
 
 module.exports = Licencia;
+

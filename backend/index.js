@@ -9,7 +9,8 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
     try {
         // Sincronizar base de datos (alter: true mantiene los datos existentes)
-        await sequelize.sync({ alter: true });
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+        await sequelize.sync({ force: true });
         console.log('✅ Base de datos sincronizada');
 
         // Ejecutar semilla de datos (solo si no existen datos)

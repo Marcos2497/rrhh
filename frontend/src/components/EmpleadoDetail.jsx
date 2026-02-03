@@ -1,3 +1,5 @@
+import { formatDateOnly } from '../utils/formatters';
+
 // Icons SVG components
 const Icons = {
     calendar: (
@@ -86,11 +88,7 @@ const Icons = {
 const EmpleadoDetail = ({ empleado, onClose, onEdit }) => {
     if (!empleado) return null;
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
+
 
     // Calculate relative time (hace X minutos/horas/días)
     const getRelativeTime = (dateString) => {
@@ -258,7 +256,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(empleado.createdAt)}
+                                        {formatDateOnly(empleado.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -313,7 +311,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(empleado.updatedAt)}
+                                        {formatDateOnly(empleado.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -336,7 +334,7 @@ const EmpleadoDetail = ({ empleado, onClose, onEdit }) => {
                                 <Field icon={Icons.phone} label="Teléfono" value={empleado.telefono} />
                                 <Field icon={Icons.identification} label="Documento" value={`${getTipoDocLabel(empleado.tipoDocumento)}: ${empleado.numeroDocumento}`} />
                                 <Field icon={Icons.document} label="CUIL" value={empleado.cuil} />
-                                <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDate(empleado.fechaNacimiento)} />
+                                <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDateOnly(empleado.fechaNacimiento)} />
                                 <Field icon={Icons.globe} label="Nacionalidad" value={empleado.nacionalidad} />
                                 <Field icon={Icons.users} label="Género" value={getGeneroLabel(empleado.genero)} />
                                 <Field icon={Icons.heart} label="Estado Civil" value={getEstadoCivilLabel(empleado.estadoCivil)} />

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
 import { getContratos, createEvaluacion, updateEvaluacion } from '../services/api';
+import { validarDiaHabil } from '../utils/diasHabiles';
 
 // Periods
 const PERIODOS = [
@@ -177,7 +178,7 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
         const loadRequests = async () => {
             try {
                 setLoadingContratos(true);
-                const result = await getContratos({ activo: 'true', limit: 1000 });
+                const result = await getContratos({ activo: 'true', estado: 'en_curso', limit: 1000 });
                 setContratos(result.data);
             } catch (err) {
                 console.error('Error loading contratos:', err);
@@ -252,9 +253,21 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
         validateStep();
     };
 
-    const handleChange = (field, value) => {
+    const handleChange = (field, value) => { // ✅ Síncrono ahora
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
+
+        // Validar día hábil en tiempo real SÍNCRONO
+        if (field === 'fecha' && value) {
+            try {
+                validarDiaHabil(value, 'La fecha de evaluación'); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, fecha: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, fecha: error.message }));
+                setTouched(prev => ({ ...prev, fecha: true })); // Marcar como touched para mostrar error
+            }
+        }
+
         if (touched[field]) validateStep();
     };
 
@@ -299,7 +312,18 @@ const EvaluacionWizard = ({ evaluacion, onClose, onSuccess }) => {
             }
         }
 
-        setFieldErrors(errors);
+        // Preservar solo los errores de días hábiles del campo fecha
+        setFieldErrors(prev => {
+            const erroresDiasHabiles = {};
+
+            // Preservar error de día hábil en campo fecha si existe
+            if (prev['fecha'] && prev['fecha'].includes('día hábil')) {
+                erroresDiasHabiles['fecha'] = prev['fecha'];
+            }
+
+            // Combinar: errores de la validación actual + error de día hábil preservado
+            return { ...erroresDiasHabiles, ...errors };
+        });
 
         if (Object.keys(errors).length > 0) {
             const allTouched = {};

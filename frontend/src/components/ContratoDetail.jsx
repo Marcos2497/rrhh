@@ -1,3 +1,5 @@
+import { formatDateOnly, formatCurrency as formatCurrencyUtil, formatDateTime } from '../utils/formatters';
+
 // Mapeo de tipos de contrato a labels legibles
 const TIPOS_CONTRATO_LABELS = {
     tiempo_indeterminado: 'Contrato por Tiempo Indeterminado (Efectivo)',
@@ -94,16 +96,7 @@ const Icons = {
 const ContratoDetail = ({ contrato, onClose, onEdit }) => {
     if (!contrato) return null;
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    const formatCurrency = (value) => {
-        if (!value) return '-';
-        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
-    };
+    const formatCurrency = formatCurrencyUtil;
 
     // Calculate relative time (hace X minutos/horas/días)
     const getRelativeTime = (dateString) => {
@@ -122,26 +115,25 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
     };
 
     // Determine contract status based on dates
-    const getContractStatus = () => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const fechaInicio = contrato.fechaInicio ? new Date(contrato.fechaInicio) : null;
-        const fechaFin = contrato.fechaFin ? new Date(contrato.fechaFin) : null;
+    const ESTADO_LABELS = {
+        pendiente: 'Pendiente',
+        en_curso: 'En Curso',
+        finalizado: 'Finalizado'
+    };
 
-        if (fechaFin && fechaFin < today) return 'Finalizado';
-        if (fechaInicio && fechaInicio > today) return 'Pendiente';
-        return 'En Curso';
+    const ESTADO_COLORS = {
+        pendiente: '#f97316', // orange
+        en_curso: '#3b82f6', // blue
+        finalizado: '#ef4444' // red
+    };
+
+    const getContractStatus = () => {
+        return ESTADO_LABELS[contrato.estado] || contrato.estado;
     };
 
     // Get status badge color
     const getContractStatusColor = () => {
-        const status = getContractStatus();
-        switch (status) {
-            case 'En Curso': return '#3b82f6'; // blue
-            case 'Pendiente': return '#f97316'; // orange
-            case 'Finalizado': return '#ef4444'; // red
-            default: return '#6b7280'; // gray
-        }
+        return ESTADO_COLORS[contrato.estado] || '#6b7280';
     };
 
     const categoria = CATEGORIA_CONTRATO[contrato.tipoContrato] || 'Otro';
@@ -289,7 +281,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                 #{contrato.id}
                             </span>
                         </div>
-                        {onEdit && (
+                        {onEdit && contrato.estado !== 'finalizado' && (
                             <button className="btn btn-warning btn-sm" onClick={() => onEdit(contrato)} title="Editar">
                                 {Icons.edit}
                                 Editar
@@ -324,7 +316,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(contrato.createdAt)}
+                                        {formatDateTime(contrato.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -379,7 +371,7 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(contrato.updatedAt)}
+                                        {formatDateTime(contrato.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -434,8 +426,8 @@ const ContratoDetail = ({ contrato, onClose, onEdit }) => {
                                         </span>
                                     </div>
                                 </div>
-                                <Field icon={Icons.calendar} label="Fecha de Inicio" value={formatDate(contrato.fechaInicio)} />
-                                <Field icon={Icons.calendar} label="Fecha de Fin" value={contrato.fechaFin ? formatDate(contrato.fechaFin) : 'Indeterminado'} />
+                                <Field icon={Icons.calendar} label="Fecha de Inicio" value={formatDateOnly(contrato.fechaInicio)} />
+                                <Field icon={Icons.calendar} label="Fecha de Fin" value={contrato.fechaFin ? formatDateOnly(contrato.fechaFin) : 'Indeterminado'} />
                                 <Field icon={Icons.document} label="Tipo de Contrato" value={TIPOS_CONTRATO_LABELS[contrato.tipoContrato] || contrato.tipoContrato} />
                                 <Field icon={Icons.building} label="Categoría" value={categoria} />
                                 <Field icon={Icons.clock} label="Horario" value={contrato.horario} />

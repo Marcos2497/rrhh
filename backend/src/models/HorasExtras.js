@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Tipos de horas extra
 const TIPOS_HORAS_EXTRA = [
@@ -124,9 +125,15 @@ HorasExtras.addHook('beforeValidate', (horasExtras) => {
 
     // Validar que la fecha no sea futura
     if (horasExtras.fecha) {
-        const fecha = new Date(horasExtras.fecha);
+        const fecha = parseLocalDate(horasExtras.fecha);
+        fecha.setHours(0, 0, 0, 0);
         if (fecha > today) {
             throw new Error('La fecha no puede ser futura');
+        }
+
+        // Validar día hábil
+        if (!esDiaHabil(horasExtras.fecha)) {
+            throw new Error('La fecha debe ser un día hábil (lunes a viernes, excluyendo feriados)');
         }
     }
 

@@ -565,16 +565,16 @@ export const reactivateSolicitud = async (id) => {
     return result;
 };
 
-export const getVacacionesDias = async (contratoId, periodo) => {
+export const getDiasDisponiblesVacaciones = async (contratoId, periodo) => {
     const params = periodo ? `?periodo=${periodo}` : '';
-    const response = await fetch(`${API_URL}/solicitudes/vacaciones/dias/${contratoId}${params}`);
+    const response = await fetch(`${API_URL}/solicitudes/vacaciones/diasDisponibles/${contratoId}${params}`);
     if (!response.ok) throw new Error('Error al obtener días de vacaciones');
     return response.json();
 };
 
-export const getFeriadosArgentina = async (year) => {
-    const response = await fetch(`${API_URL}/solicitudes/feriados/${year}`);
-    if (!response.ok) return [];
+export const getDiasSolicitadosVacaciones = async (fechaInicio, fechaFin) => {
+    const params = new URLSearchParams({ fechaInicio, fechaFin });
+    const response = await fetch(`${API_URL}/solicitudes/vacaciones/diasSolicitados?${params.toString()}`);
+    if (!response.ok) throw new Error('Error al calcular días solicitados');
     return response.json();
 };
-

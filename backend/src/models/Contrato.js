@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate, esDiaHabil } = require('../utils/fechas');
 
 // Tipos de contrato por categoría
 const TIPOS_CONTRATO = [
@@ -58,10 +59,15 @@ const Contrato = sequelize.define('Contrato', {
             isNotPast(value) {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const [year, month, day] = value.split('-');
-                const startDate = new Date(year, month - 1, day); // fecha local
-                if (startDate < today) {
+                value = parseLocalDate(value);
+                value.setHours(0, 0, 0, 0);
+                if (value < today) {
                     throw new Error('La fecha de inicio no puede ser anterior a hoy');
+                }
+
+                // Validar día hábil
+                if (!esDiaHabil(value)) {
+                    throw new Error('La fecha de inicio debe ser un día hábil (lunes a viernes, excluyendo feriados)');
                 }
             },
         },
@@ -71,6 +77,14 @@ const Contrato = sequelize.define('Contrato', {
         allowNull: true,
         validate: {
             isDate: { msg: 'Debe ser una fecha válida' },
+            isBusinessDay(value) {
+                if (!value) return; // fechaFin es opcional
+
+                // Validar día hábil
+                if (!esDiaHabil(value)) {
+                    throw new Error('La fecha de fin debe ser un día hábil (lunes a viernes, excluyendo feriados)');
+                }
+            },
         },
     },
     horario: {
@@ -97,6 +111,11 @@ const Contrato = sequelize.define('Contrato', {
             },
         },
     },
+    estado: {
+        type: DataTypes.ENUM('pendiente', 'en_curso', 'finalizado'),
+        allowNull: false,
+        defaultValue: 'pendiente',
+    },
     compensacion: {
         type: DataTypes.STRING(500),
         allowNull: true,
@@ -114,14 +133,30 @@ const Contrato = sequelize.define('Contrato', {
     timestamps: true,
 });
 
-// Hook para validar que fechaFin no sea anterior a fechaInicio
-Contrato.addHook('beforeValidate', (contrato) => {
-    if (contrato.fechaFin && contrato.fechaInicio) {
-        if (new Date(contrato.fechaFin) < new Date(contrato.fechaInicio)) {
-            throw new Error('La fecha de fin no puede ser anterior a la fecha de inicio');
-        }
+const actualizarEstadoContrato = (contrato) => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const inicio = parseLocalDate(contrato.fechaInicio);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fin = contrato.fechaFin
+        ? parseLocalDate(contrato.fechaFin)
+        : null;
+
+    fin?.setHours(0, 0, 0, 0);
+
+    if (fin && fin < hoy) {
+        contrato.estado = 'finalizado';
+    } else if (inicio > hoy) {
+        contrato.estado = 'pendiente';
+    } else {
+        contrato.estado = 'en_curso';
     }
-});
+};
+
+Contrato.addHook('beforeCreate', actualizarEstadoContrato);
+Contrato.addHook('beforeSave', actualizarEstadoContrato);
 
 module.exports = Contrato;
 

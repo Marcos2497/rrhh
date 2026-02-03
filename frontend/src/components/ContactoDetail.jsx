@@ -1,3 +1,5 @@
+import { formatDateOnly } from '../utils/formatters';
+
 // Icons SVG components
 const Icons = {
     calendar: (
@@ -66,11 +68,7 @@ const Icons = {
 const ContactoDetail = ({ contacto, onClose, onEdit }) => {
     if (!contacto) return null;
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
+
 
     // Calculate relative time (hace X minutos/horas/días)
     const getRelativeTime = (dateString) => {
@@ -282,7 +280,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(contacto.createdAt)}
+                                        {formatDateOnly(contacto.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -337,7 +335,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(contacto.updatedAt)}
+                                        {formatDateOnly(contacto.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -357,7 +355,7 @@ const ContactoDetail = ({ contacto, onClose, onEdit }) => {
                             }}>
                                 <Field icon={Icons.user} label="Nombre Completo" value={contacto.nombreCompleto} />
                                 <Field icon={Icons.document} label="DNI" value={contacto.dni} />
-                                <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDate(contacto.fechaNacimiento)} />
+                                <Field icon={Icons.calendar} label="Fecha de Nacimiento" value={formatDateOnly(contacto.fechaNacimiento)} />
                                 <Field icon={Icons.heart} label="Parentesco" value={contacto.parentesco} />
                                 <Field icon={Icons.phone} label="Teléfono Principal" value={contacto.telefonoPrincipal} />
                                 <Field icon={Icons.phone} label="Teléfono Secundario" value={contacto.telefonoSecundario} />

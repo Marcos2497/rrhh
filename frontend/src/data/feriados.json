@@ -1,0 +1,42 @@
+{
+    "feriados_fijos": [
+        "01-01",
+        "03-24",
+        "04-02",
+        "05-01",
+        "05-25",
+        "06-20",
+        "07-09",
+        "08-17",
+        "10-12",
+        "12-08",
+        "12-25"
+    ],
+    "feriados_moviles_aproximados": [
+        "02-12",
+        "02-13",
+        "03-29",
+        "04-18",
+        "06-17",
+        "11-18"
+    ],
+    "descripcion": {
+        "01-01": "Año Nuevo",
+        "02-12": "Carnaval (aproximado)",
+        "02-13": "Carnaval (aproximado)",
+        "03-24": "Día Nacional de la Memoria por la Verdad y la Justicia",
+        "03-29": "Viernes Santo (aproximado)",
+        "04-02": "Día del Veterano y de los Caídos en la Guerra de Malvinas",
+        "04-18": "Viernes Santo (aproximado)",
+        "05-01": "Día del Trabajador",
+        "05-25": "Día de la Revolución de Mayo",
+        "06-17": "Paso a la Inmortalidad del General Martín Miguel de Güemes (aproximado)",
+        "06-20": "Paso a la Inmortalidad del General Manuel Belgrano",
+        "07-09": "Día de la Independencia",
+        "08-17": "Paso a la Inmortalidad del General José de San Martín",
+        "10-12": "Día del Respeto a la Diversidad Cultural",
+        "11-18": "Día de la Soberanía Nacional (aproximado)",
+        "12-08": "Día de la Inmaculada Concepción de María",
+        "12-25": "Navidad"
+    }
+}

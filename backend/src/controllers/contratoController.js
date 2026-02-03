@@ -30,7 +30,7 @@ const includeRelations = [
 // Obtener todos los contratos con filtros y paginación
 const getAll = async (req, res) => {
     try {
-        const { empleadoId, tipoContrato, search, activo, page = 1, limit = 10 } = req.query;
+        const { empleadoId, tipoContrato, estado, search, activo, page = 1, limit = 10 } = req.query;
         const where = {};
 
         // Por defecto solo mostrar activos
@@ -48,6 +48,10 @@ const getAll = async (req, res) => {
 
         if (tipoContrato) {
             where.tipoContrato = tipoContrato;
+        }
+
+        if (estado) {
+            where.estado = estado;
         }
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -147,7 +151,7 @@ const create = async (req, res) => {
             });
         }
 
-        // Validar que el empleado no tenga ya un contrato activo para alguno de estos puestos
+        // Validar que el empleado no tenga ya un contrato activo (y no finalizado) para alguno de estos puestos
         const contratosExistentes = await ContratoPuesto.findAll({
             where: { puestoId: puestoIds },
             include: [{
@@ -155,7 +159,8 @@ const create = async (req, res) => {
                 as: 'contrato',
                 where: {
                     empleadoId: empleadoId,
-                    activo: true
+                    activo: true,
+                    estado: { [Op.ne]: 'finalizado' } // Permitir si el contrato anterior está finalizado
                 }
             }]
         });
@@ -169,7 +174,7 @@ const create = async (req, res) => {
 
             await transaction.rollback();
             return res.status(400).json({
-                error: `El empleado ya tiene un contrato activo para el/los puesto(s): ${puestosNombres}`
+                error: `El empleado ya tiene un contrato activo (no finalizado) para el/los puesto(s): ${puestosNombres}`
             });
         }
 
@@ -222,6 +227,14 @@ const update = async (req, res) => {
             return res.status(404).json({ error: 'Contrato no encontrado' });
         }
 
+        // No permitir editar contratos finalizados
+        if (contrato.estado === 'finalizado') {
+            await transaction.rollback();
+            return res.status(400).json({
+                error: 'No se puede editar un contrato finalizado. Solo puede visualizarlo o desactivarlo.'
+            });
+        }
+
         // Actualizar datos básicos del contrato
         await contrato.update(contratoData, { transaction });
 
@@ -250,6 +263,34 @@ const update = async (req, res) => {
                 await transaction.rollback();
                 return res.status(400).json({
                     error: 'Todos los puestos deben pertenecer a la misma empresa.'
+                });
+            }
+
+            // Validar que no haya conflictos con otros contratos activos del mismo empleado
+            const contratosExistentes = await ContratoPuesto.findAll({
+                where: { puestoId: puestoIds },
+                include: [{
+                    model: Contrato,
+                    as: 'contrato',
+                    where: {
+                        id: { [Op.ne]: contrato.id }, // Excluir el contrato actual
+                        empleadoId: contrato.empleadoId,
+                        activo: true,
+                        estado: { [Op.ne]: 'finalizado' }
+                    }
+                }]
+            });
+
+            if (contratosExistentes.length > 0) {
+                const puestosConContrato = contratosExistentes.map(cp => cp.puestoId);
+                const puestosNombres = puestos
+                    .filter(p => puestosConContrato.includes(p.id))
+                    .map(p => p.nombre)
+                    .join(', ');
+
+                await transaction.rollback();
+                return res.status(400).json({
+                    error: `El empleado ya tiene otro contrato activo para el/los puesto(s): ${puestosNombres}`
                 });
             }
 
@@ -351,7 +392,8 @@ const getPuestosConContrato = async (req, res) => {
         const contratosActivos = await Contrato.findAll({
             where: {
                 empleadoId: parseInt(empleadoId),
-                activo: true
+                activo: true,
+                estado: { [Op.ne]: 'finalizado' } // Excluir contratos finalizados
             },
             include: [{
                 model: Puesto,
@@ -360,7 +402,7 @@ const getPuestosConContrato = async (req, res) => {
             }]
         });
 
-        // Extraer IDs de puestos con contrato activo
+        // Extraer IDs de puestos con contrato activo (no finalizado)
         const puestoIds = contratosActivos.flatMap(c => c.puestos.map(p => p.id));
 
         res.json({ puestoIds: [...new Set(puestoIds)] });

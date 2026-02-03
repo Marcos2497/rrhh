@@ -1,3 +1,5 @@
+import { formatDateOnly } from '../utils/formatters';
+
 // Icons SVG components
 const Icons = {
     calendar: (
@@ -111,11 +113,7 @@ const ESCALA_COLORS = {
 const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
     if (!evaluacion) return null;
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
+
 
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
@@ -271,7 +269,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(evaluacion.createdAt)}
+                                        {formatDateOnly(evaluacion.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -320,7 +318,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(evaluacion.updatedAt)}
+                                        {formatDateOnly(evaluacion.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -340,7 +338,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                             }}>
                                 <Field icon={Icons.clipboard} label="Período" value={PERIODO_LABELS[evaluacion.periodo] || evaluacion.periodo} />
                                 <Field icon={Icons.document} label="Tipo de Evaluación" value={TIPO_EVALUACION_LABELS[evaluacion.tipoEvaluacion] || evaluacion.tipoEvaluacion} />
-                                <Field icon={Icons.calendar} label="Fecha" value={formatDate(evaluacion.fecha)} />
+                                <Field icon={Icons.calendar} label="Fecha" value={formatDateOnly(evaluacion.fecha)} />
                                 <div style={{
                                     display: 'flex',
                                     alignItems: 'flex-start',
@@ -427,7 +425,7 @@ const EvaluacionDetail = ({ evaluacion, onClose, onEdit }) => {
                                             {evaluacion.reconocidoPorEmpleado ? 'Sí' : 'No'}
                                             {evaluacion.reconocidoPorEmpleado && evaluacion.fechaReconocimiento && (
                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.5rem', fontWeight: 400 }}>
-                                                    ({formatDate(evaluacion.fechaReconocimiento)})
+                                                    ({formatDateOnly(evaluacion.fechaReconocimiento)})
                                                 </span>
                                             )}
                                         </div>

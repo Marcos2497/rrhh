@@ -7,6 +7,7 @@ import {
     getContratoById,
     reactivateContrato,
 } from '../services/api';
+import { formatDateOnly, formatCurrency } from '../utils/formatters';
 import ContratoWizard from '../components/ContratoWizard';
 import ContratoDetail from '../components/ContratoDetail';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -72,8 +73,7 @@ const Contratos = () => {
     // Column Visibility
     const [visibleColumns, setVisibleColumns] = useState({
         tipoContrato: true,
-        fechaInicio: true,
-        fechaFin: true,
+        estado: true,
         salario: true,
     });
     const [showColumnSelector, setShowColumnSelector] = useState(false);
@@ -282,15 +282,17 @@ const Contratos = () => {
 
     const showingInactive = filterActivo === 'false';
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // Mapeo de estados a etiquetas y colores
+    const ESTADO_LABELS = {
+        pendiente: 'Pendiente',
+        en_curso: 'En Curso',
+        finalizado: 'Finalizado'
     };
 
-    const formatCurrency = (value) => {
-        if (!value) return '-';
-        return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+    const ESTADO_COLORS = {
+        pendiente: '#f97316', // orange
+        en_curso: '#3b82f6', // blue
+        finalizado: '#ef4444' // red
     };
 
     return (
@@ -374,7 +376,7 @@ const Contratos = () => {
                             </button>
                             {showColumnSelector && (
                                 <div className="column-selector-dropdown">
-                                    {Object.entries({ tipoContrato: 'Tipo', fechaInicio: 'Inicio', fechaFin: 'Fin', salario: 'Salario' }).map(([key, label]) => (
+                                    {Object.entries({ tipoContrato: 'Tipo', estado: 'Estado', salario: 'Salario' }).map(([key, label]) => (
                                         <label key={key} className="column-option">
                                             <input type="checkbox" checked={visibleColumns[key]} onChange={() => toggleColumn(key)} />
                                             <span>{label}</span>
@@ -416,8 +418,7 @@ const Contratos = () => {
                                         </th>
                                         <th>Empleado</th>
                                         {visibleColumns.tipoContrato && <th>Tipo</th>}
-                                        {visibleColumns.fechaInicio && <th>Inicio</th>}
-                                        {visibleColumns.fechaFin && <th>Fin</th>}
+                                        {visibleColumns.estado && <th>Estado</th>}
                                         {visibleColumns.salario && <th>Salario</th>}
                                         <th>Acciones</th>
                                     </tr>
@@ -433,8 +434,23 @@ const Contratos = () => {
                                                 </div>
                                             </td>
                                             {visibleColumns.tipoContrato && <td><span className="badge badge-primary">{TIPOS_CONTRATO_LABELS[item.tipoContrato] || item.tipoContrato}</span></td>}
-                                            {visibleColumns.fechaInicio && <td>{formatDate(item.fechaInicio)}</td>}
-                                            {visibleColumns.fechaFin && <td>{formatDate(item.fechaFin)}</td>}
+                                            {visibleColumns.estado && (
+                                                <td>
+                                                    <span style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.4rem',
+                                                        fontSize: '0.75rem',
+                                                        padding: '0.25rem 0.6rem',
+                                                        borderRadius: '9999px',
+                                                        background: `${ESTADO_COLORS[item.estado]}20`,
+                                                        color: ESTADO_COLORS[item.estado],
+                                                        fontWeight: 700
+                                                    }}>
+                                                        {ESTADO_LABELS[item.estado] || item.estado}
+                                                    </span>
+                                                </td>
+                                            )}
                                             {visibleColumns.salario && <td>{formatCurrency(item.salario)}</td>}
                                             <td>
                                                 <div className="table-actions">
@@ -454,12 +470,14 @@ const Contratos = () => {
                                                                 </svg>
                                                                 Ver
                                                             </button>
-                                                            <button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)} title="Editar">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                                                </svg>
-                                                                Editar
-                                                            </button>
+                                                            {item.estado !== 'finalizado' && (
+                                                                <button className="btn btn-warning btn-sm" onClick={() => handleEdit(item)} title="Editar">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                                    </svg>
+                                                                    Editar
+                                                                </button>
+                                                            )}
                                                             <button className="btn btn-danger btn-sm" onClick={() => handleDeleteClick(item)} title="Desactivar">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}>
                                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />

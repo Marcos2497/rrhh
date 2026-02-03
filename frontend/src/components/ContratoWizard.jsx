@@ -9,6 +9,7 @@ import {
     getEmpresaById,
     getPuestosConContrato
 } from '../services/api';
+import { validarDiaHabil } from '../utils/diasHabiles';
 
 // Tipos de contrato agrupados por categoría
 const TIPOS_CONTRATO = {
@@ -375,7 +376,21 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
             }
         }
 
-        setFieldErrors(errors);
+        // Preservar solo los errores de días hábiles de campos de fecha
+        setFieldErrors(prev => {
+            const camposFecha = ['fechaInicio', 'fechaFin'];
+            const erroresDiasHabiles = {};
+
+            // Preservar errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            return { ...erroresDiasHabiles, ...errors };
+        });
 
         // Mark all fields with errors as touched so error messages are displayed
         if (Object.keys(errors).length > 0) {
@@ -393,9 +408,24 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         validateStep();
     };
 
-    const handleChange = (e) => {
+    const handleChange = (e) => { // ✅ Síncrono ahora
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Validar días hábiles en tiempo real SÍNCRONO
+        if ((name === 'fechaInicio' || name === 'fechaFin') && value) {
+            try {
+                const nombreCampo = name === 'fechaInicio'
+                    ? 'La fecha de inicio'
+                    : 'La fecha de fin';
+                validarDiaHabil(value, nombreCampo); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [name]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [name]: error.message }));
+                setTouched(prev => ({ ...prev, [name]: true })); // Marcar como touched para mostrar error
+            }
+        }
+
         if (touched[name]) validateStep();
     };
 
@@ -487,10 +517,13 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         );
     };
 
-    // Disable position if ANY selected employee has a contract for it
+    // Disable position if ANY selected employee has a contract for it (except in edit mode for the current contract)
     const isPuestoDisabled = (option) => {
-        if (isEditMode) return false;
         if (selectedEmpleados.length === 0) return false;
+
+        // In edit mode, allow selecting positions even if they have contracts
+        // The backend will validate conflicts with OTHER active contracts
+        if (isEditMode) return false;
 
         // Check if ANY selected employee has a contract for this position
         const anyHasContract = selectedEmpleados.some(emp =>
@@ -550,7 +583,6 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                         className="form-input"
                         value={selectedEmpresa?.id || ''}
                         onChange={handleEmpresaChange}
-                        disabled={isEditMode}
                     >
                         <option value="">Seleccionar empresa</option>
                         {empresas.map(emp => (
@@ -593,9 +625,11 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                         closeMenuOnSelect={false}
                     />
                     <FieldError message={touched.puestos && fieldErrors.puestos} />
-                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                        Los puestos con contrato activo no pueden ser seleccionados
-                    </p>
+                    {!isEditMode && (
+                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                            Los puestos con contrato activo no pueden ser seleccionados
+                        </p>
+                    )}
                 </div>
             )}
         </div>

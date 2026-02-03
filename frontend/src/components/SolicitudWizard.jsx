@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import StepTracker from './StepTracker';
-import { getContratos, getRegistrosSalud, createSolicitud, updateSolicitud, getVacacionesDias } from '../services/api';
+import { getContratos, getRegistrosSalud, createSolicitud, updateSolicitud, getDiasDisponiblesVacaciones, getDiasSolicitadosVacaciones } from '../services/api';
+import { validarDiaHabil } from '../utils/diasHabiles';
 
 // Constants
 const TIPOS_SOLICITUD = [
@@ -63,16 +64,18 @@ const TIPOS_HORAS_EXTRA = [
     { value: '100', label: '100% (fines de semana / feriados)' },
 ];
 
-const TOOLTIP_VACACIONES = `Según la Ley de Contrato de Trabajo de Argentina (LCT), los días de vacaciones se determinan por la antigüedad del trabajador:
+const TOOLTIP_VACACIONES = `Según la **Ley de Contrato de Trabajo de Argentina (LCT)**, los días de vacaciones se determinan por la antigüedad del trabajador:
 
-• Hasta 5 años de antigüedad: 14 días corridos
-• Más de 5 y hasta 10 años: 21 días corridos
-• Más de 10 y hasta 20 años: 28 días corridos
-• Más de 20 años: 35 días corridos
+• Hasta 5 años de antigüedad: **14 días corridos**
+• Más de 5 y hasta 10 años: **21 días corridos**
+• Más de 10 y hasta 20 años: **28 días corridos**
+• Más de 20 años: **35 días corridos**
 
-Regla de los 20 días: Si el trabajador no hubiere prestado servicios durante la mitad de los días hábiles del año calendario, tendrá derecho a 1 día de vacaciones por cada 20 días de trabajo efectivo. Si no se completasen 20 días de trabajo efectivo, corresponden 0 días.
+Si el trabajador no hubiere prestado servicios durante la mitad de los días hábiles del año calendario, tendrá derecho a **1 día de vacaciones por cada 20 días de trabajo efectivo**. 
 
 Los días se calculan como días hábiles (excluyendo fines de semana y feriados nacionales).`;
+
+const TOOLTIP_RENUNCIA = `Según la Ley de Contrato de Trabajo de Argentina (LCT), el **preaviso** es obligatorio y debe ser de 15 días, con el fin de que la empresa busque reemplazo.`;
 
 const FieldError = ({ message }) => {
     if (!message) return null;
@@ -108,27 +111,6 @@ const getSelectStyles = (isDark) => ({
     placeholder: (base) => ({ ...base, color: '#94a3b8' }),
 });
 
-// Calculate vacation days based on seniority (LCT)
-const calcularDiasVacaciones = (fechaInicio) => {
-    if (!fechaInicio) return 14;
-    const hoy = new Date();
-    const inicio = new Date(fechaInicio);
-    const antiguedadAnios = (hoy - inicio) / (1000 * 60 * 60 * 24 * 365);
-    if (antiguedadAnios <= 5) return 14;
-    if (antiguedadAnios <= 10) return 21;
-    if (antiguedadAnios <= 20) return 28;
-    return 35;
-};
-
-// Calculate CALENDAR days (not business days) between two dates, inclusive
-const calcularDiasCorridos = (fechaInicio, fechaFin) => {
-    if (!fechaInicio || !fechaFin) return 0;
-    const start = new Date(fechaInicio);
-    const end = new Date(fechaFin);
-    const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    return diff > 0 ? diff : 0;
-};
-
 // Calculate hours between two times
 const calcularHoras = (horaInicio, horaFin) => {
     if (!horaInicio || !horaFin) return '';
@@ -141,14 +123,6 @@ const calcularHoras = (horaInicio, horaFin) => {
     const hours = Math.floor(diff / 60);
     const mins = diff % 60;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-};
-
-// Get next day (no weekend exclusion)
-const siguienteDia = (fecha) => {
-    if (!fecha) return '';
-    const date = new Date(fecha);
-    date.setDate(date.getDate() + 1);
-    return date.toISOString().split('T')[0];
 };
 
 // Get today's date in YYYY-MM-DD format (local time)
@@ -175,7 +149,8 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
     const [fieldErrors, setFieldErrors] = useState({});
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showTooltip, setShowTooltip] = useState(false);
+    const [showTooltipVacaciones, setShowTooltipVacaciones] = useState(false);
+    const [showTooltipRenuncia, setShowTooltipRenuncia] = useState(false);
 
     // Registros de salud para licencias ART/enfermedad
     const [registrosSalud, setRegistrosSalud] = useState([]);
@@ -198,7 +173,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         const loadData = async () => {
             try {
                 setLoadingContratos(true);
-                const result = await getContratos({ activo: 'true', limit: 1000 });
+                const result = await getContratos({ activo: 'true', estado: 'en_curso', limit: 1000 });
                 setContratos(result.data);
             } catch (err) {
                 console.error('Error loading contratos:', err);
@@ -222,57 +197,46 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 
     // Load vacation info when contrato or periodo changes and type is vacaciones
     useEffect(() => {
-        const loadVacacionesInfo = async () => {
+        const loadVacacionesDisponiblesInfo = async () => {
             if (selectedContrato && selectedTipo === 'vacaciones') {
                 const periodo = formData.periodo || new Date().getFullYear();
                 try {
-                    const info = await getVacacionesDias(selectedContrato.value, periodo);
+                    const info = await getDiasDisponiblesVacaciones(selectedContrato.value, periodo);
                     setFormData(prev => ({
                         ...prev,
-                        diasCorrespondientes: info.diasCorrespondientes,
+                        diasCorrespondientes: info.diasCorrespondientes || 0,
                         diasTomados: info.diasTomados || 0,
-                        diasDisponibles: info.diasDisponibles,
+                        diasDisponibles: info.diasDisponibles || 0,
                         periodo: periodo,
                     }));
                 } catch (err) {
                     console.error('Error loading vacation info:', err);
-                    // Calculate locally if API fails
-                    const diasCorr = calcularDiasVacaciones(selectedContrato.contrato?.fechaInicio);
-                    setFormData(prev => ({
-                        ...prev,
-                        diasCorrespondientes: diasCorr,
-                        diasTomados: 0,
-                        diasDisponibles: diasCorr,
-                        periodo: periodo,
-                    }));
                 }
             }
         };
-        loadVacacionesInfo();
+        loadVacacionesDisponiblesInfo();
     }, [selectedContrato, selectedTipo, formData.periodo]);
 
     // Calculate vacation return date and days when dates change
     useEffect(() => {
-        if (selectedTipo === 'vacaciones' && formData.fechaInicio && formData.fechaFin) {
-            const fechaRegreso = siguienteDia(formData.fechaFin);
-            const diasSolicitud = calcularDiasCorridos(formData.fechaInicio, formData.fechaFin);
-            setFormData(prev => ({
-                ...prev,
-                fechaRegreso,
-                diasSolicitud,
-            }));
-        }
-    }, [formData.fechaInicio, formData.fechaFin, selectedTipo]);
+        const loadVacacionesSolicitadosInfo = async () => {
+            if (selectedTipo === 'vacaciones' && formData.fechaInicio && formData.fechaFin) {
+                const fechaInicio = formData.fechaInicio;
+                const fechaFin = formData.fechaFin;
 
-    // Calculate licencia days when dates change
-    useEffect(() => {
-        if (selectedTipo === 'licencia' && formData.fechaInicio && formData.fechaFin) {
-            const diasSolicitud = calcularDiasCorridos(formData.fechaInicio, formData.fechaFin);
-            setFormData(prev => ({
-                ...prev,
-                diasSolicitud,
-            }));
-        }
+                try {
+                    const info = await getDiasSolicitadosVacaciones(fechaInicio, fechaFin);
+                    setFormData(prev => ({
+                        ...prev,
+                        fechaRegreso: info.fechaRegreso,
+                        diasSolicitud: info.diasSolicitud || 0,
+                    }));
+                } catch (err) {
+                    console.error('Error loading vacation info:', err);
+                }
+            }
+        };
+        loadVacacionesSolicitadosInfo();
     }, [formData.fechaInicio, formData.fechaFin, selectedTipo]);
 
     // Calculate overtime hours when times change
@@ -286,13 +250,32 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         }
     }, [formData.horaInicio, formData.horaFin, selectedTipo]);
 
+    // Calculate license days when dates change
+    useEffect(() => {
+        if (selectedTipo === 'licencia' && formData.fechaInicio && formData.fechaFin) {
+            const inicio = new Date(formData.fechaInicio);
+            const fin = new Date(formData.fechaFin);
+            if (fin >= inicio) {
+                const diffTime = Math.abs(fin - inicio);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                setFormData(prev => ({
+                    ...prev,
+                    diasSolicitados: diffDays,
+                }));
+            }
+        }
+    }, [formData.fechaInicio, formData.fechaFin, selectedTipo]);
+
     // Load registros de salud when motivo requires it
     useEffect(() => {
         const loadRegistros = async () => {
-            if (selectedTipo === 'licencia' && MOTIVOS_SALUD.includes(formData.motivoLegal) && selectedContrato?.contrato?.empleadoId) {
+            // selectedContrato.contrato.empleado.id es la estructura correcta
+            const empleadoId = selectedContrato?.contrato?.empleado?.id;
+            if (selectedTipo === 'licencia' && MOTIVOS_SALUD.includes(formData.motivoLegal) && empleadoId) {
                 try {
                     setLoadingRegistros(true);
-                    const result = await getRegistrosSalud({ empleadoId: selectedContrato.contrato.empleadoId, activo: 'true', limit: 100 });
+                    // Solo filtrar por empleadoId y activo, sin vigente para mostrar todos los disponibles
+                    const result = await getRegistrosSalud({ empleadoId, activo: 'true', limit: 100 });
                     setRegistrosSalud(result.data || []);
                 } catch (err) {
                     console.error('Error loading registros:', err);
@@ -321,9 +304,30 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 
     const contratoOptions = contratos.map(formatContratoOption);
 
-    const handleChange = (field, value) => {
+    const handleChange = (field, value) => { // ✅ Síncrono ahora
         setFormData(prev => ({ ...prev, [field]: value }));
         setError('');
+
+        // Validar día hábil en tiempo real SÍNCRONO
+        const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
+        if (camposFecha.includes(field) && value) {
+            try {
+                const nombresCampos = {
+                    fechaInicio: 'La fecha de inicio',
+                    fechaFin: 'La fecha de fin',
+                    fecha: 'La fecha',
+                    fechaNotificacion: 'La fecha de notificación',
+                    fechaBajaEfectiva: 'La fecha de baja',
+                    notificadoEl: 'La fecha de notificación'
+                };
+                validarDiaHabil(value, nombresCampos[field]); // ✅ Síncrono
+                setFieldErrors(prev => ({ ...prev, [field]: null }));
+            } catch (error) {
+                setFieldErrors(prev => ({ ...prev, [field]: error.message }));
+                setTouched(prev => ({ ...prev, [field]: true })); // Marcar como touched para mostrar error
+            }
+        }
+
         if (touched[field]) {
             validateStep2();
         }
@@ -345,7 +349,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
         if (!selectedContrato) errors.contrato = 'Debe seleccionar un contrato';
         if (!selectedTipo) errors.tipoSolicitud = 'Debe seleccionar un tipo de solicitud';
 
-        setFieldErrors(errors);
+        setFieldErrors(prev => ({ ...prev, ...errors })); // Preservar errores existentes
         if (Object.keys(errors).length > 0) {
             setTouched({ contrato: true, tipoSolicitud: true });
             setError('Por favor complete todos los campos obligatorios');
@@ -391,14 +395,30 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
             }
             if (!formData.tipoHorasExtra) errors.tipoHorasExtra = 'El tipo es requerido';
         } else if (selectedTipo === 'renuncia') {
-            if (!formData.fechaNotificacion) errors.fechaNotificacion = 'La fecha de notificación es requerida';
-            if (formData.fechaBajaEfectiva && formData.fechaNotificacion && formData.fechaBajaEfectiva < formData.fechaNotificacion) {
-                errors.fechaBajaEfectiva = 'La fecha de baja no puede ser anterior a la notificación';
-            }
+            // Usar valor de formData o valor por defecto (hoy)
+            const fechaNot = formData.fechaNotificacion || getTodayStr();
+            if (!fechaNot) errors.fechaNotificacion = 'La fecha de notificación es requerida';
         }
 
-        setFieldErrors(errors);
-        return Object.keys(errors).length === 0;
+        // Preservar solo los errores de días hábiles de campos que NO están siendo validados ahora
+        const allErrors = setFieldErrors(prev => {
+            const camposFecha = ['fechaInicio', 'fechaFin', 'fecha', 'fechaNotificacion', 'fechaBajaEfectiva', 'notificadoEl'];
+            const erroresDiasHabiles = {};
+
+            // Preservar solo errores de días hábiles en campos de fecha
+            camposFecha.forEach(campo => {
+                if (prev[campo] && prev[campo].includes('día hábil')) {
+                    erroresDiasHabiles[campo] = prev[campo];
+                }
+            });
+
+            // Combinar: errores de la validación actual + errores de días hábiles preservados
+            const combined = { ...erroresDiasHabiles, ...errors };
+            return combined;
+        });
+
+        // Retornar false si hay CUALQUIER error (validación básica O días hábiles)
+        return Object.keys(errors).length === 0 && !Object.values(fieldErrors).some(err => err !== null);
     };
 
     const nextStep = () => {
@@ -436,6 +456,11 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                 tipoSolicitud: selectedTipo,
                 ...formData,
             };
+
+            // Asegurar que fechaNotificacion tenga valor por defecto para renuncia
+            if (selectedTipo === 'renuncia' && !payload.fechaNotificacion) {
+                payload.fechaNotificacion = getTodayStr();
+            }
 
             if (isEditing) {
                 await updateSolicitud(solicitud.id, payload);
@@ -575,7 +600,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <input
                             type="number"
                             className="form-input"
-                            value={formData.diasSolicitud || ''}
+                            value={formData.diasSolicitados || ''}
                             disabled
                         />
                     </div>
@@ -624,7 +649,6 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
     const renderVacacionesForm = () => {
         const currentYear = new Date().getFullYear();
         const periodos = [
-            { value: currentYear - 1, label: (currentYear - 1).toString() },
             { value: currentYear, label: currentYear.toString() },
             { value: currentYear + 1, label: (currentYear + 1).toString() },
         ];
@@ -652,7 +676,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             Días Corresp.
                             <span
                                 className="tooltip-icon"
-                                onClick={() => setShowTooltip(!showTooltip)}
+                                onClick={() => setShowTooltipVacaciones(!showTooltipVacaciones)}
                                 style={{ cursor: 'pointer' }}
                             >
                                 ?
@@ -660,6 +684,15 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         </label>
                         <input type="number" className="form-input" value={formData.diasCorrespondientes || ''} disabled />
                     </div>
+                </div>
+                {showTooltipVacaciones && (
+                    <div className="tooltip-info" style={{ whiteSpace: 'pre-line', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                        {TOOLTIP_VACACIONES.split('**').map((part, i) =>
+                            i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                        )}
+                    </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
                         <label className="form-label">Días Tomados</label>
                         <input type="number" className="form-input" value={formData.diasTomados || 0} disabled />
@@ -669,13 +702,6 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         <input type="number" className="form-input" value={formData.diasDisponibles || ''} disabled />
                     </div>
                 </div>
-
-                {showTooltip && (
-                    <div className="tooltip-info" style={{ marginBottom: '0.5rem' }}>
-                        {TOOLTIP_VACACIONES.split('\n').map((line, i) => <div key={i}>{line}</div>)}
-                    </div>
-                )}
-
                 {/* Row 2: Dates */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
@@ -709,7 +735,7 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Días Solic.</label>
-                        <input type="number" className="form-input" value={formData.diasSolicitud || ''} disabled />
+                        <input type="number" className="form-input" value={formData.diasSolicitud || 0} disabled />
                     </div>
                 </div>
 
@@ -723,8 +749,11 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                             value={formData.notificadoEl || ''}
                             onChange={e => handleChange('notificadoEl', e.target.value)}
                             max={getTodayStr()}
-                            disabled={isReadOnly()}
+                            disabled={true}
                         />
+                        <small style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
+                            Se completa automáticamente al aprobar la solicitud
+                        </small>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Estado *</label>
@@ -854,13 +883,13 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
 
     const renderRenunciaForm = () => (
         <div style={{ display: 'grid', gap: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                     <label className="form-label">Fecha Notificación *</label>
                     <input
                         type="date"
                         className={`form-input ${touched.fechaNotificacion && fieldErrors.fechaNotificacion ? 'input-error' : ''}`}
-                        value={formData.fechaNotificacion || ''}
+                        value={formData.fechaNotificacion || new Date().toISOString().split('T')[0]}
                         onChange={e => handleChange('fechaNotificacion', e.target.value)}
                         onBlur={() => handleBlur('fechaNotificacion')}
                         max={getTodayStr()}
@@ -869,15 +898,35 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                     <FieldError message={touched.fechaNotificacion && fieldErrors.fechaNotificacion} />
                 </div>
                 <div className="form-group">
-                    <label className="form-label">Fecha Baja Efectiva</label>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Fecha Baja Efectiva
+                        <span
+                            className="tooltip-icon"
+                            onClick={() => setShowTooltipRenuncia(!showTooltipRenuncia)}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            ?
+                        </span>
+                    </label>
                     <input
                         type="date"
                         className="form-input"
                         value={formData.fechaBajaEfectiva || ''}
                         disabled
                     />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se completa automáticamente al procesar</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Se calcula automáticamente: 15 días desde la notificación (preaviso)</span>
                 </div>
+            </div>
+
+            {showTooltipRenuncia && (
+                <div className="tooltip-info" style={{ whiteSpace: 'pre-line', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                    {TOOLTIP_RENUNCIA.split('**').map((part, i) =>
+                        i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                    )}
+                </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                     <label className="form-label">Estado *</label>
                     <select
@@ -888,9 +937,6 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         {ESTADOS_RENUNCIA.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
                     </select>
                 </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                     <label className="form-label">URL Comprobante</label>
                     <input
@@ -901,19 +947,6 @@ const SolicitudWizard = ({ solicitud, onClose, onSuccess }) => {
                         maxLength={100}
                         disabled={isReadOnly()}
                     />
-                </div>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.8rem' }}>
-                    <input
-                        type="checkbox"
-                        id="preaviso"
-                        checked={formData.preaviso || false}
-                        onChange={e => handleChange('preaviso', e.target.checked)}
-                        disabled={isReadOnly()}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="preaviso" className="form-label" style={{ marginBottom: 0, cursor: 'pointer' }}>
-                        Cumplió preaviso
-                    </label>
                 </div>
             </div>
 

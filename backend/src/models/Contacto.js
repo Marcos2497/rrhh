@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { parseLocalDate } = require('../utils/fechas');
 
 const Contacto = sequelize.define('Contacto', {
     id: {
@@ -60,14 +61,19 @@ const Contacto = sequelize.define('Contacto', {
                 if (!value) return;
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                if (new Date(value) > today) {
+                value = parseLocalDate(value);
+                value.setHours(0, 0, 0, 0);
+                if (value > today) {
                     throw new Error('La fecha de nacimiento no puede ser futura');
                 }
             },
             isMinimumAge(value) {
                 if (!value) return;
                 const today = new Date();
-                const birthDate = new Date(value);
+                today.setHours(0, 0, 0, 0);
+                value = parseLocalDate(value);
+                value.setHours(0, 0, 0, 0);
+                const birthDate = value;
                 let age = today.getFullYear() - birthDate.getFullYear();
                 const monthDiff = today.getMonth() - birthDate.getMonth();
                 if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {

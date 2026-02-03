@@ -11,7 +11,7 @@ const includeEmpleado = [{
 // Obtener todos los registros de salud con paginación y filtros
 const getAll = async (req, res) => {
     try {
-        const { search, page = 1, limit = 10, activo, tipoExamen, resultado, empleadoId } = req.query;
+        const { search, page = 1, limit = 10, activo, tipoExamen, resultado, empleadoId, vigente } = req.query;
         const where = {};
 
         // Filtro de activo
@@ -36,6 +36,11 @@ const getAll = async (req, res) => {
         // Filtro por empleadoId
         if (empleadoId) {
             where.empleadoId = empleadoId;
+        }
+
+        // Filtro por vigente
+        if (vigente) {
+            where.vigente = vigente;
         }
 
         const offset = (parseInt(page) - 1) * parseInt(limit);

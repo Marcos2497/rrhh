@@ -8,6 +8,10 @@ const evaluacionRoutes = require('./routes/evaluacionRoutes');
 const contactoRoutes = require('./routes/contactoRoutes');
 const solicitudRoutes = require('./routes/solicitudRoutes');
 
+// Iniciar cron jobs
+require('./jobs/contrato.cron');
+require('./jobs/registroSalud.cron');
+
 const app = express();
 
 // Middlewares

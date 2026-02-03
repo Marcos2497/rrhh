@@ -1,3 +1,5 @@
+import { formatDateOnly, formatDateTime } from '../utils/formatters';
+
 // Icons SVG components
 const Icons = {
     calendar: (
@@ -64,12 +66,6 @@ const RESULTADO_COLORS = {
 const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
     if (!registro) return null;
 
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
     const getRelativeTime = (dateString) => {
         if (!dateString) return 'fecha desconocida';
         const date = new Date(dateString);
@@ -87,14 +83,10 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
 
     // Check if vencimiento is close (within 30 days) or expired
     const getVencimientoStatus = () => {
-        if (!registro.fechaVencimiento) return null;
-        const vencimiento = new Date(registro.fechaVencimiento);
-        const now = new Date();
-        const diffDays = Math.ceil((vencimiento - now) / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) return { status: 'expired', label: 'Vencido', color: '#ef4444' };
-        if (diffDays <= 30) return { status: 'warning', label: `Vence en ${diffDays} días`, color: '#f59e0b' };
-        return { status: 'ok', label: 'Vigente', color: '#22c55e' };
+        return {
+            label: registro.vigente ? 'Vigente' : 'Vencido',
+            color: registro.vigente ? '#22c55e' : '#ef4444'
+        };
     };
 
     const vencimientoStatus = getVencimientoStatus();
@@ -217,7 +209,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                         Fecha de Creación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(registro.createdAt)}
+                                        {formatDateTime(registro.createdAt)}
                                     </div>
                                 </div>
                             </div>
@@ -266,7 +258,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                         Última Modificación
                                     </div>
                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                        {formatDate(registro.updatedAt)}
+                                        {formatDateTime(registro.updatedAt)}
                                     </div>
                                 </div>
                             </div>
@@ -312,7 +304,7 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                         </span>
                                     </div>
                                 </div>
-                                <Field icon={Icons.calendar} label="Fecha de Realización" value={formatDate(registro.fechaRealizacion)} />
+                                <Field icon={Icons.calendar} label="Fecha de Realización" value={formatDateOnly(registro.fechaRealizacion)} />
                                 <div style={{
                                     display: 'flex',
                                     alignItems: 'flex-start',
@@ -327,20 +319,27 @@ const RegistroSaludDetail = ({ registro, onClose, onEdit }) => {
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                             <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {formatDate(registro.fechaVencimiento)}
+                                                {formatDateOnly(registro.fechaVencimiento)}
                                             </span>
-                                            {vencimientoStatus && (
+                                            <span style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem',
+                                                fontSize: '0.75rem',
+                                                padding: '0.2rem 0.5rem',
+                                                borderRadius: '9999px',
+                                                background: `${vencimientoStatus.color}20`,
+                                                color: vencimientoStatus.color,
+                                                fontWeight: 600
+                                            }}>
                                                 <span style={{
-                                                    fontSize: '0.75rem',
-                                                    padding: '0.2rem 0.5rem',
-                                                    borderRadius: '9999px',
-                                                    background: `${vencimientoStatus.color}20`,
-                                                    color: vencimientoStatus.color,
-                                                    fontWeight: 600
-                                                }}>
-                                                    {vencimientoStatus.label}
-                                                </span>
-                                            )}
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    borderRadius: '50%',
+                                                    background: vencimientoStatus.color
+                                                }} />
+                                                {vencimientoStatus.label}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>

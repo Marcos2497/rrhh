@@ -1,0 +1,51 @@
+/**
+ * Formatea una fecha DATEONLY (YYYY-MM-DD) a formato local sin problemas de zona horaria
+ * @param {string} dateString - Fecha en formato YYYY-MM-DD
+ * @returns {string} - Fecha formateada como DD/MM/YYYY o '-' si no hay fecha
+ */
+export const formatDateOnly = (dateString) => {
+    if (!dateString) return '-';
+
+    // Para fechas DATEONLY (YYYY-MM-DD), parseamos como fecha local
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+
+    // Obtener los componentes formateados
+    const dayStr = date.toLocaleDateString('es-AR', { day: '2-digit' });
+    const monthStr = date.toLocaleDateString('es-AR', { month: 'short' });
+    const yearStr = date.toLocaleDateString('es-AR', { year: 'numeric' });
+
+    // Construir manualmente: "04 de dic de 1990"
+    return `${dayStr} de ${monthStr} de ${yearStr}`;
+};
+
+/**
+ * Formatea una fecha con hora (timestamp) a formato local
+ * @param {string} dateString - Fecha ISO con hora
+ * @returns {string} - Fecha formateada como DD/MM/YYYY HH:MM o '-' si no hay fecha
+ */
+export const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
+/**
+ * Formatea un valor monetario en pesos argentinos
+ * @param {number} value - Valor numérico
+ * @returns {string} - Valor formateado como moneda o '-' si no hay valor
+ */
+export const formatCurrency = (value) => {
+    if (!value) return '-';
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS'
+    }).format(value);
+};

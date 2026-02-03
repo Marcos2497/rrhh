@@ -1,6 +1,13 @@
 const { Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia, Contrato, Empleado, Puesto, Departamento, Area, Empresa, RegistroSalud } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
+const { esDiaHabil, parseLocalDate } = require('../utils/fechas');
+
+// Servicios de validación
+const vacacionesService = require('../services/vacacionesService');
+const licenciaService = require('../services/licenciaService');
+const horasExtrasService = require('../services/horasExtrasService');
+const renunciaService = require('../services/renunciaService');
 
 // Include relations for contract info
 const includeContrato = {
@@ -124,21 +131,114 @@ const getById = async (req, res) => {
     }
 };
 
-// Calculate vacation days based on seniority (Ley 20.744)
-const calcularDiasVacaciones = (fechaInicio) => {
-    const hoy = new Date();
-    const inicio = new Date(fechaInicio);
-    const antiguedad = (hoy - inicio) / (1000 * 60 * 60 * 24 * 365);
+/**
+ * Obtiene licencias que NO cuentan como días trabajados
+ */
+const getLicenciasNoAprobadas = async (contrato) => {
+    const solicitudes = await Solicitud.findAll({
+        where: {
+            contratoId: contrato.id,
+            tipoSolicitud: 'licencia',
+            activo: true,
+        },
+        include: [{
+            model: Licencia,
+            as: 'licencia',
+            where: {
+                estado: {
+                    [Op.in]: ['injustificada', 'rechazada', 'pendiente'],
+                },
+            },
+        }],
+    });
 
-    if (antiguedad < 0.5) return 0; // Menos de 6 meses
+    return solicitudes.map(s => s.licencia);
+};
+
+/**
+ * Calcula días efectivos trabajados desde inicio del contrato
+ */
+const calcularDiasEfectivos = (fechaInicio, licencias) => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const inicio = parseLocalDate(fechaInicio);
+    inicio.setHours(0, 0, 0, 0);
+
+    const MS_POR_DIA = 1000 * 60 * 60 * 24;
+
+    const diasTotales = Math.floor((hoy - inicio) / MS_POR_DIA);
+
+    let diasNoTrabajados = 0;
+
+    for (const licencia of licencias) {
+        const desde = parseLocalDate(licencia.fechaInicio);
+        const hasta = parseLocalDate(licencia.fechaFin);
+
+        desde.setHours(0, 0, 0, 0);
+        hasta.setHours(0, 0, 0, 0);
+
+        const inicioEfectivo = new Date(Math.max(desde, inicio));
+        const finEfectivo = new Date(Math.min(hasta, hoy));
+
+        // Si no hay intersección, se ignora
+        if (inicioEfectivo > finEfectivo) continue;
+
+        // Días de licencia efectivamente transcurridos (INCLUSIVO)
+        diasNoTrabajados +=
+            Math.floor((finEfectivo - inicioEfectivo) / MS_POR_DIA) + 1;
+    }
+
+    return Math.max(diasTotales - diasNoTrabajados, 0);
+};
+
+/**
+ * Calcula antigüedad en años cumplidos
+ */
+const calcularAntiguedadEnAnios = (fechaInicio) => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const inicio = parseLocalDate(fechaInicio);
+    inicio.setHours(0, 0, 0, 0);
+
+    let anios = hoy.getFullYear() - inicio.getFullYear();
+
+    const cumplioEsteAnio =
+        hoy.getMonth() > inicio.getMonth() ||
+        (hoy.getMonth() === inicio.getMonth() && hoy.getDate() >= inicio.getDate());
+
+    if (!cumplioEsteAnio) {
+        anios--;
+    }
+
+    return anios;
+};
+
+/**
+ * Calcula días de vacaciones según Ley 20.744
+ */
+const calcularDiasCorrespondientesVacaciones = async (contrato) => {
+    const licencias = await getLicenciasNoAprobadas(contrato);
+    const diasEfectivos = calcularDiasEfectivos(
+        contrato.fechaInicio,
+        licencias
+    );
+
+    // Si trabajó menos de la mitad del año
+    if (diasEfectivos < 180) {
+        return Math.floor(diasEfectivos / 20);
+    }
+
+    const antiguedad = calcularAntiguedadEnAnios(contrato.fechaInicio);
+
     if (antiguedad < 5) return 14;
     if (antiguedad < 10) return 21;
     if (antiguedad < 20) return 28;
-    return 35; // 20+ años
+    return 35;
 };
 
 // Get vacation days info for a contract
-const getVacacionesDias = async (req, res) => {
+const getDiasDisponiblesVacaciones = async (req, res) => {
     try {
         const { contratoId } = req.params;
         const { periodo } = req.query;
@@ -148,7 +248,7 @@ const getVacacionesDias = async (req, res) => {
             return res.status(404).json({ error: 'Contrato no encontrado' });
         }
 
-        const diasCorrespondientes = calcularDiasVacaciones(contrato.fechaInicio);
+        const diasCorrespondientes = await calcularDiasCorrespondientesVacaciones(contrato);
 
         // Calculate days taken from approved vacations in the period
         const vacacionesAprobadas = await Solicitud.findAll({
@@ -184,22 +284,56 @@ const getVacacionesDias = async (req, res) => {
     }
 };
 
-// Get Argentine holidays
-const getFeriados = async (req, res) => {
+const getDiasSolicitadosVacaciones = async (req, res) => {
     try {
-        const { year } = req.params;
-        const response = await fetch(`https://nolaborables.com.ar/api/v2/feriados/${year}`);
+        const { fechaInicio, fechaFin } = req.query;
 
-        if (!response.ok) {
-            // Fallback to default holidays
-            return res.json([]);
+        if (!fechaInicio || !fechaFin) {
+            return res.status(400).json({ error: 'Faltan parámetros: fechaInicio y fechaFin' });
         }
 
-        const feriados = await response.json();
-        res.json(feriados);
+        const inicio = parseLocalDate(fechaInicio);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = parseLocalDate(fechaFin);
+        fin.setHours(0, 0, 0, 0);
+
+        if (fin < inicio) {
+            return res.status(400).json({ error: 'La fecha fin no puede ser anterior a la fecha inicio' });
+        }
+
+        let diasSolicitud = 0;
+        let cursor = new Date(inicio);
+
+        // Contar días hábiles
+        while (cursor <= fin) {
+            const habil = esDiaHabil(cursor.toISOString().split('T')[0]);
+
+            console.log(
+                cursor.toISOString().split('T')[0],
+                habil ? 'HÁBIL' : 'NO HÁBIL'
+            );
+
+            if (habil) {
+                diasSolicitud++;
+            }
+
+            cursor.setDate(cursor.getDate() + 1);
+        }
+
+        // Fecha de regreso (primer día hábil)
+        let fechaRegreso = new Date(fin);
+        fechaRegreso.setDate(fechaRegreso.getDate() + 1);
+
+        while (!esDiaHabil(fechaRegreso.toISOString().split('T')[0])) {
+            fechaRegreso.setDate(fechaRegreso.getDate() + 1);
+        }
+
+        res.json({
+            diasSolicitud,
+            fechaRegreso: fechaRegreso.toISOString().split('T')[0],
+        });
     } catch (error) {
-        // Return empty array on error
-        res.json([]);
+        res.status(500).json({ error: error.message });
     }
 };
 
@@ -221,106 +355,39 @@ const create = async (req, res) => {
             return res.status(400).json({ error: 'El contrato no está activo' });
         }
 
-        // Type-specific validations
+        // Type-specific validations using services
         if (tipoSolicitud === 'vacaciones') {
-            // Check for existing pending vacation
-            const pendingVacation = await Solicitud.findOne({
-                where: {
-                    contratoId,
-                    tipoSolicitud: 'vacaciones',
-                    activo: true,
-                },
-                include: [{
-                    model: Vacaciones,
-                    as: 'vacaciones',
-                    where: { estado: 'pendiente' },
-                }],
-            });
-
-            if (pendingVacation) {
+            const validacion = await vacacionesService.validarVacaciones(contratoId, typeData);
+            if (!validacion.valido) {
                 await transaction.rollback();
-                return res.status(400).json({ error: 'Ya existe una solicitud de vacaciones pendiente para este contrato' });
+                return res.status(400).json({ error: validacion.error });
             }
+        }
 
-            // Check for overlapping approved vacations
-            const overlapping = await Solicitud.findOne({
-                where: {
-                    contratoId,
-                    tipoSolicitud: 'vacaciones',
-                    activo: true,
-                },
-                include: [{
-                    model: Vacaciones,
-                    as: 'vacaciones',
-                    where: {
-                        estado: 'aprobada',
-                        [Op.or]: [
-                            {
-                                fechaInicio: {
-                                    [Op.between]: [typeData.fechaInicio, typeData.fechaFin],
-                                },
-                            },
-                            {
-                                fechaFin: {
-                                    [Op.between]: [typeData.fechaInicio, typeData.fechaFin],
-                                },
-                            },
-                            {
-                                [Op.and]: [
-                                    { fechaInicio: { [Op.lte]: typeData.fechaInicio } },
-                                    { fechaFin: { [Op.gte]: typeData.fechaFin } },
-                                ],
-                            },
-                        ],
-                    },
-                }],
-            });
-
-            if (overlapping) {
+        if (tipoSolicitud === 'licencia') {
+            const validacion = await licenciaService.validarLicencia(contratoId, typeData);
+            if (!validacion.valido) {
                 await transaction.rollback();
-                return res.status(400).json({ error: 'Las fechas se solapan con vacaciones ya aprobadas' });
+                return res.status(400).json({ error: validacion.error });
             }
         }
 
         if (tipoSolicitud === 'horas_extras') {
-            // Check for overlapping overtime on same day
-            const overlapping = await Solicitud.findOne({
-                where: {
-                    contratoId,
-                    tipoSolicitud: 'horas_extras',
-                    activo: true,
-                },
-                include: [{
-                    model: HorasExtras,
-                    as: 'horasExtras',
-                    where: {
-                        fecha: typeData.fecha,
-                        [Op.or]: [
-                            {
-                                horaInicio: {
-                                    [Op.between]: [typeData.horaInicio, typeData.horaFin],
-                                },
-                            },
-                            {
-                                horaFin: {
-                                    [Op.between]: [typeData.horaInicio, typeData.horaFin],
-                                },
-                            },
-                            {
-                                [Op.and]: [
-                                    { horaInicio: { [Op.lte]: typeData.horaInicio } },
-                                    { horaFin: { [Op.gte]: typeData.horaFin } },
-                                ],
-                            },
-                        ],
-                    },
-                }],
-            });
-
-            if (overlapping) {
+            const validacion = await horasExtrasService.validarHorasExtras(contratoId, typeData);
+            if (!validacion.valido) {
                 await transaction.rollback();
-                return res.status(400).json({ error: 'Las horas se solapan con otra solicitud de horas extras del mismo día' });
+                return res.status(400).json({ error: validacion.error });
             }
+        }
+
+        if (tipoSolicitud === 'renuncia') {
+            const validacion = await renunciaService.validarRenuncia(contratoId);
+            if (!validacion.valido) {
+                await transaction.rollback();
+                return res.status(400).json({ error: validacion.error });
+            }
+            // Auto-set fechaBajaEfectiva from service
+            //typeData.fechaBajaEfectiva = validacion.fechaBajaEfectiva;
         }
 
         // Create base solicitud
@@ -409,15 +476,96 @@ const update = async (req, res) => {
             }
         }
 
+        // Validate overlaps when editing dates (only if pending)
+        if (currentState === 'pendiente') {
+            if (solicitud.tipoSolicitud === 'vacaciones' && (typeData.fechaInicio || typeData.fechaFin)) {
+                const datosValidar = {
+                    fechaInicio: typeData.fechaInicio || solicitud.vacaciones.fechaInicio,
+                    fechaFin: typeData.fechaFin || solicitud.vacaciones.fechaFin
+                };
+                const validacion = await vacacionesService.validarVacaciones(solicitud.contratoId, datosValidar, solicitud.id);
+                if (!validacion.valido) {
+                    await transaction.rollback();
+                    return res.status(400).json({ error: validacion.error });
+                }
+            }
+
+            if (solicitud.tipoSolicitud === 'licencia' && (typeData.fechaInicio || typeData.fechaFin)) {
+                const datosValidar = {
+                    fechaInicio: typeData.fechaInicio || solicitud.licencia.fechaInicio,
+                    fechaFin: typeData.fechaFin || solicitud.licencia.fechaFin
+                };
+                const validacion = await licenciaService.validarLicencia(solicitud.contratoId, datosValidar, solicitud.id);
+                if (!validacion.valido) {
+                    await transaction.rollback();
+                    return res.status(400).json({ error: validacion.error });
+                }
+            }
+
+            if (solicitud.tipoSolicitud === 'horas_extras' && (typeData.fecha || typeData.horaInicio || typeData.horaFin)) {
+                const datosValidar = {
+                    fecha: typeData.fecha || solicitud.horasExtras.fecha,
+                    horaInicio: typeData.horaInicio || solicitud.horasExtras.horaInicio,
+                    horaFin: typeData.horaFin || solicitud.horasExtras.horaFin
+                };
+                const validacion = await horasExtrasService.validarHorasExtras(solicitud.contratoId, datosValidar, solicitud.id);
+                if (!validacion.valido) {
+                    await transaction.rollback();
+                    return res.status(400).json({ error: validacion.error });
+                }
+            }
+        }
+
+        // Validate resignation approval/processing
+        if (solicitud.tipoSolicitud === 'renuncia' && typeData.estado) {
+            const nuevoEstado = typeData.estado;
+            const estadosQueRequierenValidacion = ['aceptada', 'procesada'];
+
+            if (estadosQueRequierenValidacion.includes(nuevoEstado) && currentState !== nuevoEstado) {
+                const validacion = await renunciaService.validarAprobacion(solicitud.contratoId);
+                if (!validacion.valido) {
+                    await transaction.rollback();
+                    return res.status(400).json({ error: validacion.error });
+                }
+            }
+        }
+
         // Update type-specific record
         switch (solicitud.tipoSolicitud) {
             case 'licencia':
+                const prevEstadoLic = solicitud.licencia?.estado;
+
+                // Si cambia a 'justificada', sumar días a fechaBajaEfectiva de renuncia activa
+                if (typeData.estado === 'justificada' && prevEstadoLic !== 'justificada') {
+                    const licenciaData = solicitud.licencia;
+                    const diasLicencia = licenciaData?.diasSolicitados || 0;
+
+                    if (diasLicencia > 0) {
+                        await licenciaService.onAprobacion(solicitud.contratoId, diasLicencia, transaction);
+                    }
+                }
+
                 await Licencia.update(typeData, {
                     where: { solicitudId: solicitud.id },
                     transaction,
                 });
                 break;
             case 'vacaciones':
+                const prevEstadoVac = solicitud.vacaciones?.estado;
+
+                // Si cambia a 'aprobada', establecer notificadoEl a hoy
+                if (typeData.estado === 'aprobada' && prevEstadoVac !== 'aprobada') {
+                    typeData.notificadoEl = new Date().toISOString().split('T')[0];
+
+                    // Si hay renuncia aceptada, sumar días de vacaciones a fechaBajaEfectiva
+                    const vacacionesData = solicitud.vacaciones;
+                    const diasVacaciones = vacacionesData?.diasSolicitud || 0;
+
+                    if (diasVacaciones > 0) {
+                        await vacacionesService.onAprobacion(solicitud.contratoId, diasVacaciones, transaction);
+                    }
+                }
+
                 await Vacaciones.update(typeData, {
                     where: { solicitudId: solicitud.id },
                     transaction,
@@ -431,6 +579,10 @@ const update = async (req, res) => {
                 break;
             case 'renuncia':
                 const prevEstado = solicitud.renuncia?.estado;
+
+                if (typeData.estado === 'aceptada' && prevEstado !== 'aceptada') {
+                    typeData.fechaBajaEfectiva = renunciaService.calcularFechaBajaEfectiva();
+                }
 
                 // Si cambia a 'procesada', establecer fechaBajaEfectiva a hoy automáticamente
                 if (typeData.estado === 'procesada' && prevEstado !== 'procesada') {
@@ -537,6 +689,6 @@ module.exports = {
     remove,
     reactivate,
     bulkRemove,
-    getVacacionesDias,
-    getFeriados,
+    getDiasDisponiblesVacaciones,
+    getDiasSolicitadosVacaciones,
 };
