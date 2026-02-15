@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
-import { createEmpresa, updateEmpresa, checkCanDeleteEmpresaItem } from '../services/api';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createEmpresa, updateEmpresa, checkCanDeleteEmpresaItem, canChangeEmpresaWorkspace } from '../services/api';
 
 const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
     const [step, setStep] = useState(1);
@@ -18,6 +19,11 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         direccion: '',
         areas: []
     });
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
 
     const [tempArea, setTempArea] = useState({ nombre: '', descripcion: '' });
     const [tempDepto, setTempDepto] = useState({ nombre: '', descripcion: '' });
@@ -50,8 +56,27 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                     }))
                 }))
             });
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(empresaToEdit.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (empresaToEdit.id) {
+                checkCanChangeWorkspace(empresaToEdit.id);
+            }
         }
     }, [empresaToEdit]);
+
+    const checkCanChangeWorkspace = async (empresaId) => {
+        try {
+            const result = await canChangeEmpresaWorkspace(empresaId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            setCanChangeWorkspace(true);
+        }
+    };
 
     const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -214,6 +239,11 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
             if (Object.keys(newErrors).length > 0) {
                 newErrors.general = 'Por favor completa todos los campos obligatorios';
             }
+
+            // Validación de espacio de trabajo
+            if (!espacioTrabajoId) {
+                newErrors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+            }
         }
         if (step === 2 && empresa.areas.length === 0) newErrors.general = 'Debes agregar al menos un área para continuar';
         setErrors(newErrors);
@@ -229,6 +259,7 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(empresa.email)) { setErrors({ email: 'El email no es válido' }); setStep(1); return false; }
         if (!empresa.industria.trim()) { setErrors({ industria: 'La industria es requerida' }); setStep(1); return false; }
         if (!empresa.direccion.trim()) { setErrors({ direccion: 'La dirección es requerida' }); setStep(1); return false; }
+        if (!espacioTrabajoId) { setErrors({ espacioTrabajoId: 'El espacio de trabajo es requerido' }); setStep(1); return false; }
         if (empresa.areas.length === 0) { setErrors({ general: 'Debes agregar al menos un área' }); setStep(2); return false; }
         return true;
     };
@@ -270,6 +301,9 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                     }))
                 };
             }
+
+            // Agregar espacioTrabajoId al payload
+            payload.espacioTrabajoId = espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined;
 
             if (isEditing) {
                 await updateEmpresa(empresaToEdit.id, payload);
@@ -391,12 +425,23 @@ const EmpresaWizard = ({ empresa: empresaToEdit, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Dirección *</label>
                 <input type="text" name="direccion" className={`form-input ${errors.direccion ? 'input-error' : ''}`}
                     value={empresa.direccion} onChange={handleInfoChange} placeholder="Ej: Calle Falsa 123, Ciudad" />
                 {errors.direccion && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.direccion}</span>}
             </div>
+
+            {/* Espacio de Trabajo */}
+            <EspacioTrabajoSelector
+                value={espacioTrabajoId}
+                onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                onBlur={() => { }}
+                canChange={!isEditing || canChangeWorkspace}
+                changeRestrictionMessage={workspaceChangeMessage}
+                touched={!!errors.espacioTrabajoId}
+                error={errors.espacioTrabajoId}
+            />
         </div>
     );
 

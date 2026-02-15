@@ -1,56 +1,89 @@
-const { Empleado, RegistroSalud } = require('../models');
+const { Empleado, Usuario, RegistroSalud, Contrato, EspacioTrabajo, sequelize } = require('../models');
 const { Op } = require('sequelize');
-
-// Removed includeRelations - Puesto is now associated with Contrato, not Empleado
 
 // Obtener todos los empleados con filtros y paginación
 const getAll = async (req, res) => {
     try {
         const { nombre, apellido, email, nacionalidad, genero, estadoCivil, activo, page = 1, limit = 10 } = req.query;
-        const where = {};
 
-        // Por defecto solo mostrar activos
+        // Filtros para la tabla Empleado
+        const whereEmpleado = {};
+        // Filtros para la tabla Usuario
+        const whereUsuario = {};
+
+        // Filtro de activo AHORA EN USUARIO
         if (activo === 'false') {
-            where.activo = false;
+            whereUsuario.activo = false;
         } else if (activo === 'all') {
             // No filtrar
         } else {
-            where.activo = true;
+            whereUsuario.activo = true;
         }
 
-        if (nombre) {
-            where[Op.or] = [
-                { nombre: { [Op.like]: `%${nombre}%` } },
-                { apellido: { [Op.like]: `%${nombre}%` } }
-            ];
+        // Filtros que ahora viven en Usuario
+        if (nacionalidad) whereUsuario.nacionalidadId = nacionalidad;
+        if (genero) whereUsuario.genero = genero;
+        if (estadoCivil) whereUsuario.estadoCivil = estadoCivil;
+
+        // Filtros de texto en Usuario
+        if (nombre) whereUsuario.nombre = { [Op.like]: `%${nombre}%` };
+        if (apellido) whereUsuario.apellido = { [Op.like]: `%${apellido}%` };
+        if (email) whereUsuario.email = { [Op.like]: `%${email}%` };
+
+        // Restricción de Espacio de Trabajo
+        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
+        // Buscar el espacio de trabajo del usuario actual
+        // 1. Si es empleado
+        let espacioTrabajoId = null;
+        const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
+        if (empleadoSesion) {
+            espacioTrabajoId = empleadoSesion.espacioTrabajoId;
+        } else {
+            // 2. Si es propietario
+            const espacioPropio = await EspacioTrabajo.findOne({ where: { propietarioId: usuarioSesionId } });
+            if (espacioPropio) espacioTrabajoId = espacioPropio.id;
         }
-        if (apellido) {
-            where.apellido = { [Op.like]: `%${apellido}%` };
-        }
-        if (email) {
-            where.email = { [Op.like]: `%${email}%` };
-        }
-        if (nacionalidad) {
-            where.nacionalidadId = { [Op.like]: `%${nacionalidad}%` };
-        }
-        if (genero) {
-            where.genero = genero;
-        }
-        if (estadoCivil) {
-            where.estadoCivil = estadoCivil;
+
+        if (espacioTrabajoId) {
+            whereEmpleado.espacioTrabajoId = espacioTrabajoId;
         }
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
 
         const { count, rows } = await Empleado.findAndCountAll({
-            where,
-            order: [['apellido', 'ASC'], ['nombre', 'ASC']],
+            where: whereEmpleado,
+            include: [
+                {
+                    model: Usuario,
+                    as: 'usuario',
+                    where: whereUsuario,
+                    // Traer todos los atributos necesarios para el frontend
+                    attributes: ['id', 'nombre', 'apellido', 'email', 'activo', 'telefono', 'tipoDocumento', 'numeroDocumento', 'cuil', 'fechaNacimiento', 'nacionalidadId', 'genero', 'estadoCivil', 'calle', 'numero', 'piso', 'departamento', 'codigoPostal', 'provinciaId', 'ciudadId']
+                }
+            ],
+            order: [
+                [{ model: Usuario, as: 'usuario' }, 'apellido', 'ASC'],
+                [{ model: Usuario, as: 'usuario' }, 'nombre', 'ASC']
+            ],
             limit: parseInt(limit),
             offset,
         });
 
+        const flatRows = rows.map(emp => {
+            const plainEmp = emp.get({ plain: true });
+            const usuario = plainEmp.usuario || {};
+            // Mezclar propiedades de usuario en el nivel superior
+            return {
+                ...plainEmp,
+                ...usuario, // DNI, calle, etc
+                usuarioActivo: usuario.activo, // Alias para no pisar activo del empleado
+                id: plainEmp.id, // Mantener ID de empleado como id principal
+                usuarioId: usuario.id
+            };
+        });
+
         res.json({
-            data: rows,
+            data: flatRows,
             pagination: {
                 total: count,
                 page: parseInt(page),
@@ -59,6 +92,7 @@ const getAll = async (req, res) => {
             },
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -66,149 +100,239 @@ const getAll = async (req, res) => {
 // Obtener empleado por ID
 const getById = async (req, res) => {
     try {
-        const empleado = await Empleado.findByPk(req.params.id);
-
-        if (!empleado) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
-        }
-
-        res.json(empleado);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Crear empleado
-const create = async (req, res) => {
-    try {
-        const empleado = await Empleado.create(req.body);
-
-        res.status(201).json(empleado);
-    } catch (error) {
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            const field = error.errors?.[0]?.path || '';
-            if (field === 'numeroDocumento') {
-                return res.status(400).json({ error: 'El número de documento ya está registrado' });
-            }
-            if (field === 'cuil') {
-                return res.status(400).json({ error: 'El CUIL ya está registrado' });
-            }
-            return res.status(400).json({ error: 'El email ya está registrado' });
-        }
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Actualizar empleado
-const update = async (req, res) => {
-    try {
-        const empleado = await Empleado.findByPk(req.params.id);
-
-        if (!empleado) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
-        }
-
-        await empleado.update(req.body);
-
-        res.json(empleado);
-    } catch (error) {
-        if (error.name === 'SequelizeUniqueConstraintError') {
-            const field = error.errors?.[0]?.path || '';
-            if (field === 'numeroDocumento') {
-                return res.status(400).json({ error: 'El número de documento ya está registrado' });
-            }
-            if (field === 'cuil') {
-                return res.status(400).json({ error: 'El CUIL ya está registrado' });
-            }
-            return res.status(400).json({ error: 'El email ya está registrado' });
-        }
-        if (error.name === 'SequelizeValidationError') {
-            const messages = error.errors.map(e => e.message);
-            return res.status(400).json({ error: messages.join(', ') });
-        }
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Eliminar empleado (eliminación lógica)
-const remove = async (req, res) => {
-    try {
-        const { Contrato } = require('../models');
-        const empleado = await Empleado.findByPk(req.params.id);
-
-        if (!empleado) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
-        }
-
-        // Verificar registros de salud activos
-        const registrosActivos = await RegistroSalud.count({
-            where: {
-                empleadoId: empleado.id,
-                activo: true
-            }
+        const empleado = await Empleado.findByPk(req.params.id, {
+            include: [{
+                model: Usuario,
+                as: 'usuario',
+                // Traer todos los atributos
+                attributes: { exclude: ['contrasena'] }
+            }]
         });
 
-        // Verificar si tiene contratos activos
+        if (!empleado) {
+            return res.status(404).json({ error: 'Empleado no encontrado' });
+        }
+
+        // Aplanar
+        const plainEmp = empleado.get({ plain: true });
+        const usuario = plainEmp.usuario || {};
+
+        const result = {
+            ...plainEmp,
+            ...usuario,
+            id: plainEmp.id,
+            usuarioId: usuario.id,
+            usuarioActivo: usuario.activo
+        };
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Crear empleado (Usuario + Empleado)
+const create = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        // Extraer campos que van a Usuario
+        const {
+            nombre, apellido, email, contrasena,
+            telefono, tipoDocumento, numeroDocumento, cuil, fechaNacimiento, nacionalidadId, genero, estadoCivil,
+            calle, numero, piso, departamento, codigoPostal, provinciaId, ciudadId,
+            ...empleadoData
+        } = req.body;
+
+        // Determinar Espacio de Trabajo
+        const usuarioSesionId = req.session.usuarioId || req.session.empleadoId;
+        let espacioTrabajoId = null;
+
+        // Intentar obtener del empleado actual
+        const empleadoSesion = await Empleado.findOne({ where: { usuarioId: usuarioSesionId } });
+        if (empleadoSesion) {
+            espacioTrabajoId = empleadoSesion.espacioTrabajoId;
+        } else {
+            // Intentar obtener si es propietario
+            const espacioPropio = await EspacioTrabajo.findOne({ where: { propietarioId: usuarioSesionId } });
+            if (espacioPropio) espacioTrabajoId = espacioPropio.id;
+        }
+
+        if (!espacioTrabajoId) {
+            throw new Error('No se pudo determinar el espacio de trabajo para crear el empleado');
+        }
+
+        // 1. Crear Usuario con TODOS los datos personales
+        const rawPassword = contrasena || 'Sistema123!';
+
+        const usuario = await Usuario.create({
+            nombre,
+            apellido,
+            email,
+            contrasena: rawPassword,
+            esEmpleado: true,
+            esAdministrador: false,
+            activo: true,
+            // Datos personales
+            telefono, tipoDocumento, numeroDocumento, cuil, fechaNacimiento, nacionalidadId, genero, estadoCivil,
+            calle, numero, piso, departamento, codigoPostal, provinciaId, ciudadId
+        }, { transaction: t });
+
+        // 2. Crear Empleado (vinculación)
+        // OJO: "activo" eliminado de modelo Empleado
+        const nuevoEmpleado = await Empleado.create({
+            ...empleadoData, // Si hay campos extra específicos de Empleado (no movidos)
+            usuarioId: usuario.id,
+            espacioTrabajoId: espacioTrabajoId
+        }, { transaction: t });
+
+        await t.commit();
+
+        // Responder con estructura aplanada
+        res.status(201).json({
+            ...nuevoEmpleado.get({ plain: true }),
+            ...usuario.get({ plain: true }), // Mezclar datos de usuario
+            id: nuevoEmpleado.id, // Preservar ID empleado
+            usuarioId: usuario.id
+        });
+
+    } catch (error) {
+        await t.rollback();
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = error.errors?.[0]?.path || '';
+            if (field === 'email') return res.status(400).json({ error: 'El email ya está registrado' });
+            if (field === 'numeroDocumento') return res.status(400).json({ error: 'El número de documento ya está registrado' });
+            if (field === 'cuil') return res.status(400).json({ error: 'El CUIL ya está registrado' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Actualizar empleado (y usuario)
+const update = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const empleado = await Empleado.findByPk(req.params.id);
+
+        if (!empleado) {
+            return res.status(404).json({ error: 'Empleado no encontrado' });
+        }
+
+        // Separar datos
+        const {
+            nombre, apellido, email,
+            telefono, tipoDocumento, numeroDocumento, cuil, fechaNacimiento, nacionalidadId, genero, estadoCivil,
+            calle, numero, piso, departamento, codigoPostal, provinciaId, ciudadId,
+            ...empleadoData
+        } = req.body;
+
+        // Actualizar Empleado
+        await empleado.update(empleadoData, { transaction: t });
+
+        // Actualizar Usuario asociado
+        const usuario = await Usuario.findByPk(empleado.usuarioId);
+        if (usuario) {
+            await usuario.update({
+                nombre, apellido, email,
+                telefono, tipoDocumento, numeroDocumento, cuil, fechaNacimiento, nacionalidadId, genero, estadoCivil,
+                calle, numero, piso, departamento, codigoPostal, provinciaId, ciudadId
+            }, { transaction: t });
+        }
+
+        await t.commit();
+
+        // Recargar para devolver datos frescos
+        const empleadoUpdated = await Empleado.findByPk(req.params.id, {
+            include: [{ model: Usuario, as: 'usuario' }]
+        });
+
+        const plainEmp = empleadoUpdated.get({ plain: true });
+        const plainUser = plainEmp.usuario || {};
+
+        res.json({
+            ...plainEmp,
+            ...plainUser,
+            id: plainEmp.id,
+            usuarioId: plainUser.id
+        });
+
+    } catch (error) {
+        await t.rollback();
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: 'El email o documento ya está en uso' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Eliminar empleado (desactiva usuario y empleado)
+const remove = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const empleado = await Empleado.findByPk(req.params.id);
+
+        if (!empleado) {
+            return res.status(404).json({ error: 'Empleado no encontrado' });
+        }
+
+        // Verificar registros activos (manteniendo lógica anterior)
+        const registrosActivos = await RegistroSalud.count({
+            where: { empleadoId: empleado.id, activo: true }
+        });
         const contratosActivos = await Contrato.count({
-            where: {
-                empleadoId: empleado.id,
-                activo: true
-            }
+            where: { empleadoId: empleado.id, activo: true }
         });
 
         if (registrosActivos > 0 || contratosActivos > 0) {
-            const reasons = [];
-            if (registrosActivos > 0) reasons.push(`${registrosActivos} registro(s) de salud activo(s)`);
-            if (contratosActivos > 0) reasons.push(`${contratosActivos} contrato(s) activo(s)`);
-
-            return res.status(400).json({
-                error: `No se puede desactivar el empleado porque tiene ${reasons.join(' y ')}. Primero desactive los registros correspondientes.`
-            });
+            return res.status(400).json({ error: 'No se puede desactivar por registros activos' });
         }
 
-        await empleado.update({ activo: false });
+        // Empleado ya no tiene campo activo
+        // await empleado.update({ activo: false }, { transaction: t });
+
+        // Desactivar Usuario
+        await Usuario.update({ activo: false }, { where: { id: empleado.usuarioId }, transaction: t });
+
+        await t.commit();
         res.json({ message: 'Empleado desactivado correctamente' });
     } catch (error) {
+        await t.rollback();
         res.status(500).json({ error: error.message });
     }
 };
 
-// Reactivar empleado
+// Reactivar
 const reactivate = async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         const empleado = await Empleado.findByPk(req.params.id);
+        if (!empleado) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-        if (!empleado) {
-            return res.status(404).json({ error: 'Empleado no encontrado' });
-        }
+        // Empleado ya no tiene campo activo
+        // await empleado.update({ activo: true }, { transaction: t });
 
-        await empleado.update({ activo: true });
+        await Usuario.update({ activo: true }, { where: { id: empleado.usuarioId }, transaction: t });
 
+        await t.commit();
         res.json(empleado);
     } catch (error) {
+        await t.rollback();
         res.status(500).json({ error: error.message });
     }
 };
 
-// Eliminar múltiples empleados (eliminación lógica en lote)
+// Bulk remove
 const bulkRemove = async (req, res) => {
     try {
         const { ids } = req.body;
+        if (!ids || !ids.length) return res.status(400).json({ error: 'IDs requeridos' });
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({ error: 'Se requiere un array de IDs' });
-        }
+        const empleados = await Empleado.findAll({ where: { id: ids } });
+        const usuarioIds = empleados.map(e => e.usuarioId);
 
-        await Empleado.update(
-            { activo: false },
-            { where: { id: ids } }
-        );
+        // await Empleado.update({ activo: false }, { where: { id: ids } });
+        await Usuario.update({ activo: false }, { where: { id: usuarioIds } });
 
-        res.json({ message: `${ids.length} empleado(s) desactivado(s) correctamente` });
+        res.json({ message: 'Empleados desactivados' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

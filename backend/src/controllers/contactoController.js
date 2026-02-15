@@ -1,4 +1,4 @@
-const { Contacto, Empleado } = require('../models');
+const { Contacto, Empleado, Usuario } = require('../models');
 const { Op } = require('sequelize');
 
 // Obtener todos los contactos con filtros y paginación
@@ -31,7 +31,11 @@ const getAll = async (req, res) => {
             include: [{
                 model: Empleado,
                 as: 'empleado',
-                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'apellido', 'numeroDocumento']
+                }]
             }],
             order: [['nombreCompleto', 'ASC']],
             limit: parseInt(limit),
@@ -59,7 +63,11 @@ const getById = async (req, res) => {
             include: [{
                 model: Empleado,
                 as: 'empleado',
-                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'apellido', 'numeroDocumento']
+                }]
             }],
         });
 
@@ -109,7 +117,11 @@ const create = async (req, res) => {
             include: [{
                 model: Empleado,
                 as: 'empleado',
-                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'apellido', 'numeroDocumento']
+                }]
             }],
         });
 
@@ -153,7 +165,11 @@ const update = async (req, res) => {
             include: [{
                 model: Empleado,
                 as: 'empleado',
-                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'apellido', 'numeroDocumento']
+                }]
             }],
         });
 
@@ -198,7 +214,11 @@ const reactivate = async (req, res) => {
             include: [{
                 model: Empleado,
                 as: 'empleado',
-                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                include: [{
+                    model: Usuario,
+                    as: 'usuario',
+                    attributes: ['nombre', 'apellido', 'numeroDocumento']
+                }]
             }],
         });
 

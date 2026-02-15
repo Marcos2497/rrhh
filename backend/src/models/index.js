@@ -1,4 +1,5 @@
 const sequelize = require('../config/database');
+const Usuario = require('./Usuario');
 const Empleado = require('./Empleado');
 const Empresa = require('./Empresa');
 const Area = require('./Area');
@@ -22,11 +23,39 @@ const Permiso = require('./Permiso');
 const RolPermiso = require('./RolPermiso');
 const EspacioTrabajo = require('./EspacioTrabajo');
 
+// ==========================================
+// DEFINICIÓN DE RELACIONES
+// ==========================================
+
+// --- Usuario & Auth ---
+// Usuario -> Empleado (1:1 o 1:N si se permite multiskills, pero por ahora 1:N para soportar multiples empleos)
+// Un usuario puede ser empleado en varios espacios de trabajo
+Usuario.hasMany(Empleado, { foreignKey: 'usuarioId', as: 'empleos', onDelete: 'CASCADE' });
+Empleado.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+
+// Usuario -> EspacioTrabajo (Propietario)
+Usuario.hasMany(EspacioTrabajo, { foreignKey: 'propietarioId', as: 'espaciosPropiedad' });
+EspacioTrabajo.belongsTo(Usuario, { foreignKey: 'propietarioId', as: 'propietario' });
+
+// --- Espacio de Trabajo Core ---
+// EspacioTrabajo -> Entidades Principales
+EspacioTrabajo.hasMany(Empleado, { foreignKey: 'espacioTrabajoId', as: 'empleados', onDelete: 'CASCADE' });
+Empleado.belongsTo(EspacioTrabajo, { foreignKey: 'espacioTrabajoId', as: 'espacioTrabajo' });
+
+EspacioTrabajo.hasMany(Empresa, { foreignKey: 'espacioTrabajoId', as: 'empresas', onDelete: 'CASCADE' });
+Empresa.belongsTo(EspacioTrabajo, { foreignKey: 'espacioTrabajoId', as: 'espacioTrabajo' });
+
+EspacioTrabajo.hasMany(Rol, { foreignKey: 'espacioTrabajoId', as: 'roles', onDelete: 'CASCADE' });
+Rol.belongsTo(EspacioTrabajo, { foreignKey: 'espacioTrabajoId', as: 'espacioTrabajo' });
+
+EspacioTrabajo.hasMany(ConceptoSalarial, { foreignKey: 'espacioTrabajoId', as: 'conceptos', onDelete: 'CASCADE' });
+ConceptoSalarial.belongsTo(EspacioTrabajo, { foreignKey: 'espacioTrabajoId', as: 'espacioTrabajo' });
+
+EspacioTrabajo.hasMany(ParametroLaboral, { foreignKey: 'espacioTrabajoId', as: 'parametros', onDelete: 'CASCADE' });
+ParametroLaboral.belongsTo(EspacioTrabajo, { foreignKey: 'espacioTrabajoId', as: 'espacioTrabajo' });
 
 
-
-// Relaciones
-
+// --- Estructura Organizacional ---
 // Empresa -> Areas
 Empresa.hasMany(Area, { foreignKey: 'empresaId', as: 'areas', onDelete: 'CASCADE' });
 Area.belongsTo(Empresa, { foreignKey: 'empresaId', as: 'empresa' });
@@ -39,6 +68,7 @@ Departamento.belongsTo(Area, { foreignKey: 'areaId', as: 'area' });
 Departamento.hasMany(Puesto, { foreignKey: 'departamentoId', as: 'puestos', onDelete: 'CASCADE' });
 Puesto.belongsTo(Departamento, { foreignKey: 'departamentoId', as: 'departamento' });
 
+// --- Gestión de Empleados ---
 // Empleado -> Contratos
 Empleado.hasMany(Contrato, { foreignKey: 'empleadoId', as: 'contratos', onDelete: 'CASCADE' });
 Contrato.belongsTo(Empleado, { foreignKey: 'empleadoId', as: 'empleado' });
@@ -89,6 +119,7 @@ Contrato.belongsToMany(Evaluacion, {
 Contacto.belongsTo(Empleado, { foreignKey: 'empleadoId', as: 'empleado' });
 Empleado.hasMany(Contacto, { foreignKey: 'empleadoId', as: 'contactos', onDelete: 'CASCADE' });
 
+// --- Solicitudes y Novedades ---
 // Contrato -> Solicitudes
 Contrato.hasMany(Solicitud, { foreignKey: 'contratoId', as: 'solicitudes', onDelete: 'CASCADE' });
 Solicitud.belongsTo(Contrato, { foreignKey: 'contratoId', as: 'contrato' });
@@ -117,6 +148,8 @@ RegistroSalud.hasMany(Licencia, { foreignKey: 'registroSaludId', as: 'licencias'
 Contrato.hasMany(Liquidacion, { foreignKey: 'contratoId', as: 'liquidaciones', onDelete: 'CASCADE' });
 Liquidacion.belongsTo(Contrato, { foreignKey: 'contratoId', as: 'contrato' });
 
+
+// --- Roles y Permisos ---
 // Rol <-> Permiso (Many-to-Many via RolPermiso)
 Rol.belongsToMany(Permiso, {
     through: RolPermiso,
@@ -137,13 +170,13 @@ RolPermiso.belongsTo(Permiso, { foreignKey: 'permisoId', as: 'permiso' });
 Rol.hasMany(RolPermiso, { foreignKey: 'rolId', as: 'rolPermisos' });
 Permiso.hasMany(RolPermiso, { foreignKey: 'permisoId', as: 'rolPermisos' });
 
-// EspacioTrabajo -> Empleado (propietario)
-EspacioTrabajo.belongsTo(Empleado, { foreignKey: 'propietarioId', as: 'propietario' });
-Empleado.hasMany(EspacioTrabajo, { foreignKey: 'propietarioId', as: 'espaciosTrabajo' });
-
+// Contrato -> Rol
+Contrato.belongsTo(Rol, { foreignKey: 'rolId', as: 'rol' });
+Rol.hasMany(Contrato, { foreignKey: 'rolId', as: 'contratos' });
 
 module.exports = {
     sequelize,
+    Usuario,
     Empleado,
     Empresa,
     Area,
@@ -167,5 +200,3 @@ module.exports = {
     RolPermiso,
     EspacioTrabajo,
 };
-
-

@@ -749,17 +749,18 @@ export const deleteConceptoSalarial = async (id) => {
 };
 
 // ===== PARÁMETROS LABORALES =====
-export const getParametrosLaborales = async () => {
-    const response = await fetch(`${API_URL}/parametros-laborales`);
+export const getParametrosLaborales = async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const response = await fetchWithCredentials(`${API_URL}/parametros-laborales${queryString ? `?${queryString}` : ''}`);
     if (!response.ok) throw new Error('Error al obtener parámetros laborales');
     return response.json();
 };
 
-export const updateParametrosLaborales = async (parametros) => {
-    const response = await fetch(`${API_URL}/parametros-laborales`, {
+export const updateParametrosLaborales = async (parametrosData) => {
+    const response = await fetchWithCredentials(`${API_URL}/parametros-laborales`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parametros),
+        body: JSON.stringify(parametrosData),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Error al actualizar parámetros laborales');
@@ -935,3 +936,24 @@ export const deleteEspaciosTrabajoB = async (ids) => {
     if (!response.ok) throw new Error(result.error || 'Error al eliminar espacios de trabajo');
     return result;
 };
+
+// Validaciones de cambio de espacio de trabajo
+export const canChangeEmpleadoWorkspace = async (empleadoId) => {
+    const response = await fetchWithCredentials(`${API_URL}/espacios-trabajo/validation/empleado/${empleadoId}/can-change`);
+    if (!response.ok) throw new Error('Error al verificar cambio de espacio de trabajo');
+    return response.json();
+};
+
+export const canChangeEmpresaWorkspace = async (empresaId) => {
+    const response = await fetchWithCredentials(`${API_URL}/espacios-trabajo/validation/empresa/${empresaId}/can-change`);
+    if (!response.ok) throw new Error('Error al verificar cambio de espacio de trabajo');
+    return response.json();
+};
+
+export const canChangeRolWorkspace = async (rolId) => {
+    const response = await fetchWithCredentials(`${API_URL}/espacios-trabajo/validation/rol/${rolId}/can-change`);
+    if (!response.ok) throw new Error('Error al verificar cambio de espacio de trabajo');
+    return response.json();
+};
+
+// ===== Conceptos Salariales =====

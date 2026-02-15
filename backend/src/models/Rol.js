@@ -7,12 +7,18 @@ const Rol = sequelize.define('Rol', {
         primaryKey: true,
         autoIncrement: true,
     },
+    espacioTrabajoId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'espacios_trabajo',
+            key: 'id',
+        },
+        onDelete: 'CASCADE',
+    },
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        unique: {
-            msg: 'Ya existe un rol con este nombre',
-        },
         validate: {
             notEmpty: { msg: 'El nombre del rol es requerido' },
             len: { args: [1, 100], msg: 'El nombre debe tener entre 1 y 100 caracteres' },
@@ -22,6 +28,11 @@ const Rol = sequelize.define('Rol', {
         type: DataTypes.TEXT,
         allowNull: true,
     },
+    esObligatorio: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
     activo: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
@@ -30,6 +41,13 @@ const Rol = sequelize.define('Rol', {
 }, {
     tableName: 'roles',
     timestamps: true,
+    indexes: [
+        {
+            unique: true,
+            fields: ['espacioTrabajoId', 'nombre'],
+            name: 'unique_rol_nombre_per_espacio'
+        }
+    ]
 });
 
 module.exports = Rol;

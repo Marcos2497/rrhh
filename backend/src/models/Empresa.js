@@ -7,6 +7,15 @@ const Empresa = sequelize.define('Empresa', {
         primaryKey: true,
         autoIncrement: true,
     },
+    espacioTrabajoId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'espacios_trabajo',
+            key: 'id',
+        },
+        onDelete: 'CASCADE',
+    },
     nombre: {
         type: DataTypes.STRING(200),
         allowNull: false,
@@ -18,7 +27,6 @@ const Empresa = sequelize.define('Empresa', {
     email: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        unique: true,
         validate: {
             notEmpty: { msg: 'El email es requerido' },
             isEmail: { msg: 'Debe ser un email válido' },
@@ -60,6 +68,12 @@ const Empresa = sequelize.define('Empresa', {
 }, {
     tableName: 'empresas',
     timestamps: true,
+    indexes: [
+        {
+            unique: true,
+            fields: ['espacioTrabajoId', 'email'],
+        },
+    ]
 });
 
 module.exports = Empresa;

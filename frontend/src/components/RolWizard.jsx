@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
-import { createRol, updateRol, getPermisosGrouped } from '../services/api';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createRol, updateRol, getPermisosGrouped, canChangeRolWorkspace } from '../services/api';
 
 // Componente de error de campo
 const FieldError = ({ message }) => {
@@ -23,6 +24,11 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         nombre: '',
         descripcion: '',
     });
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
 
     // Form data - Paso 2: Permisos
     const [permisos, setPermisos] = useState([]);
@@ -56,8 +62,27 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                 descripcion: rol.descripcion || '',
             });
             setPermisos(rol.permisos?.map(p => p.id) || []);
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(rol.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (rol.id) {
+                checkCanChangeWorkspace(rol.id);
+            }
         }
     }, [rol]);
+
+    const checkCanChangeWorkspace = async (rolId) => {
+        try {
+            const result = await canChangeRolWorkspace(rolId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            setCanChangeWorkspace(true);
+        }
+    };
 
     const handleBlur = (field) => {
         setTouched(prev => ({ ...prev, [field]: true }));
@@ -111,6 +136,9 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
         if (info.descripcion && info.descripcion.length > 1000) {
             errors.descripcion = 'Las notas no pueden exceder 1000 caracteres';
         }
+        if (!espacioTrabajoId) {
+            errors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+        }
         setFieldErrors(errors);
         setTouched({ nombre: true });
         return Object.keys(errors).length === 0;
@@ -141,6 +169,7 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                 nombre: info.nombre,
                 descripcion: info.descripcion,
                 permisos: permisos,
+                espacioTrabajoId: espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined,
             };
 
             if (isEditMode) {
@@ -220,6 +249,17 @@ const RolWizard = ({ rol, onClose, onSuccess }) => {
                 <FieldError message={touched.descripcion && fieldErrors.descripcion} />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{info.descripcion.length}/1000</span>
             </div>
+
+            {/* Espacio de Trabajo */}
+            <EspacioTrabajoSelector
+                value={espacioTrabajoId}
+                onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                onBlur={() => handleBlur('espacioTrabajoId')}
+                canChange={!isEditMode || canChangeWorkspace}
+                changeRestrictionMessage={workspaceChangeMessage}
+                touched={touched.espacioTrabajoId}
+                error={fieldErrors.espacioTrabajoId}
+            />
         </div>
     );
 

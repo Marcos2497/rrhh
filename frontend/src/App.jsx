@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
+import NonEmployeeRoute from './components/NonEmployeeRoute';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
@@ -72,7 +73,9 @@ function App() {
                     } />
                     <Route path="/espacios-trabajo" element={
                         <ProtectedLayout sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}>
-                            <EspaciosTrabajo />
+                            <NonEmployeeRoute>
+                                <EspaciosTrabajo />
+                            </NonEmployeeRoute>
                         </ProtectedLayout>
                     } />
                     <Route path="/empleados" element={

@@ -1,45 +1,81 @@
 const { ParametroLaboral } = require('../models');
 
-// Obtener parámetros laborales (singleton)
+// Obtener parámetros laborales por espacio de trabajo
 const get = async (req, res) => {
     try {
-        let parametros = await ParametroLaboral.findOne();
+        const { espacioTrabajoId } = req.query;
 
-        // Si no existe, crear con valores por defecto
-        if (!parametros) {
-            parametros = await ParametroLaboral.create({
-                limiteAusenciaInjustificada: 1,
+        if (!espacioTrabajoId) {
+            return res.status(400).json({ error: 'espacioTrabajoId es requerido' });
+        }
+
+        // Buscar el parámetro de límite de ausencia para este espacio
+        let parametro = await ParametroLaboral.findOne({
+            where: {
+                espacioTrabajoId: parseInt(espacioTrabajoId),
+                tipo: 'limite_ausencia_injustificada'
+            }
+        });
+
+        // Si no existe, crear con valor por defecto
+        if (!parametro) {
+            parametro = await ParametroLaboral.create({
+                tipo: 'limite_ausencia_injustificada',
+                valor: '1',
+                descripcion: 'Límite de ausencias injustificadas permitidas por mes',
+                esObligatorio: true,
+                espacioTrabajoId: parseInt(espacioTrabajoId)
             });
         }
 
-        res.json(parametros);
+        // Devolver en formato compatible con frontend
+        res.json({
+            limiteAusenciaInjustificada: parseInt(parametro.valor)
+        });
     } catch (error) {
         console.error('Error al obtener parámetros laborales:', error);
         res.status(500).json({ error: error.message });
     }
 };
 
-// Actualizar parámetros laborales (singleton)
+// Actualizar parámetros laborales
 const update = async (req, res) => {
     try {
-        const { limiteAusenciaInjustificada } = req.body;
+        const { limiteAusenciaInjustificada, espacioTrabajoId } = req.body;
 
-        let parametros = await ParametroLaboral.findOne();
+        if (!espacioTrabajoId) {
+            return res.status(400).json({ error: 'espacioTrabajoId es requerido' });
+        }
 
-        // Si no existe, crear
-        if (!parametros) {
-            parametros = await ParametroLaboral.create({
-                limiteAusenciaInjustificada: limiteAusenciaInjustificada !== undefined ? limiteAusenciaInjustificada : 1,
+        // Buscar el parámetro existente
+        let parametro = await ParametroLaboral.findOne({
+            where: {
+                espacioTrabajoId: parseInt(espacioTrabajoId),
+                tipo: 'limite_ausencia_injustificada'
+            }
+        });
+
+        if (!parametro) {
+            // Crear si no existe
+            parametro = await ParametroLaboral.create({
+                tipo: 'limite_ausencia_injustificada',
+                valor: limiteAusenciaInjustificada !== undefined ? limiteAusenciaInjustificada.toString() : '1',
+                descripcion: 'Límite de ausencias injustificadas permitidas por mes',
+                esObligatorio: true,
+                espacioTrabajoId: parseInt(espacioTrabajoId)
             });
         } else {
             // Actualizar
             if (limiteAusenciaInjustificada !== undefined) {
-                parametros.limiteAusenciaInjustificada = limiteAusenciaInjustificada;
+                parametro.valor = limiteAusenciaInjustificada.toString();
             }
-            await parametros.save();
+            await parametro.save();
         }
 
-        res.json({ message: 'Parámetros laborales actualizados exitosamente', parametros });
+        res.json({
+            message: 'Parámetros laborales actualizados exitosamente',
+            limiteAusenciaInjustificada: parseInt(parametro.valor)
+        });
     } catch (error) {
         console.error('Error al actualizar parámetros laborales:', error);
         res.status(400).json({ error: error.message });

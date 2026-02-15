@@ -1,4 +1,4 @@
-const { Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia, Contrato, Empleado, Puesto, Departamento, Area, Empresa, RegistroSalud } = require('../models');
+const { Solicitud, Licencia, Vacaciones, HorasExtras, Renuncia, Contrato, Empleado, Puesto, Departamento, Area, Empresa, RegistroSalud, Usuario } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const { esDiaHabil, parseLocalDate } = require('../utils/fechas');
@@ -18,6 +18,11 @@ const includeContrato = {
         {
             model: Empleado,
             as: 'empleado',
+            include: [{
+                model: Usuario,
+                as: 'usuario',
+                attributes: ['id', 'nombre', 'apellido', 'numeroDocumento']
+            }]
         },
         {
             model: Puesto,
@@ -94,9 +99,9 @@ const getAll = async (req, res) => {
             const searchLower = search.toLowerCase();
             result.rows = result.rows.filter(sol => {
                 const empleado = sol.contrato?.empleado;
-                if (!empleado) return false;
-                const fullName = `${empleado.nombre} ${empleado.apellido}`.toLowerCase();
-                const documento = empleado.numeroDocumento?.toLowerCase() || '';
+                if (!empleado || !empleado.usuario) return false;
+                const fullName = `${empleado.usuario.nombre} ${empleado.usuario.apellido}`.toLowerCase();
+                const documento = empleado.usuario.numeroDocumento?.toLowerCase() || '';
                 return fullName.includes(searchLower) || documento.includes(searchLower);
             });
         }

@@ -1,4 +1,4 @@
-const { Liquidacion, Contrato, Empleado } = require('../models');
+const { Liquidacion, Contrato, Empleado, Usuario } = require('../models');
 const { Op } = require('sequelize');
 
 // Obtener todas las liquidaciones con filtros y paginación
@@ -56,7 +56,11 @@ const getAll = async (req, res) => {
                 include: [{
                     model: Empleado,
                     as: 'empleado',
-                    attributes: ['id', 'nombre', 'apellido', 'numeroDocumento'],
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['nombre', 'apellido', 'numeroDocumento']
+                    }]
                 }],
                 attributes: ['id', 'tipoContrato', 'fechaInicio', 'fechaFin', 'estado'],
             }],
@@ -89,6 +93,11 @@ const getById = async (req, res) => {
                 include: [{
                     model: Empleado,
                     as: 'empleado',
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['nombre', 'apellido', 'numeroDocumento']
+                    }]
                 }],
             }],
         });
@@ -156,6 +165,11 @@ const update = async (req, res) => {
                 include: [{
                     model: Empleado,
                     as: 'empleado',
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['nombre', 'apellido', 'numeroDocumento']
+                    }]
                 }],
             }],
         });
@@ -209,6 +223,11 @@ const reactivate = async (req, res) => {
                 include: [{
                     model: Empleado,
                     as: 'empleado',
+                    include: [{
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['nombre', 'apellido', 'numeroDocumento']
+                    }]
                 }],
             }],
         });

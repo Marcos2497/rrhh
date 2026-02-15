@@ -1,11 +1,15 @@
-const { RegistroSalud, Empleado } = require('../models');
+const { RegistroSalud, Empleado, Usuario } = require('../models');
 const { Op } = require('sequelize');
 
 // Include para obtener empleado
 const includeEmpleado = [{
     model: Empleado,
     as: 'empleado',
-    attributes: ['id', 'nombre', 'apellido', 'numeroDocumento']
+    include: [{
+        model: Usuario,
+        as: 'usuario',
+        attributes: ['nombre', 'apellido', 'numeroDocumento']
+    }]
 }];
 
 // Obtener todos los registros de salud con paginación y filtros

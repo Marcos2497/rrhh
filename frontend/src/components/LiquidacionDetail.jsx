@@ -30,8 +30,8 @@ ulo dentro del body */}
                     <div style={{ marginBottom: '2rem' }}>
                         <h4 style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: '600' }}>Empleado</h4>
                         <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-                            <div><strong>Nombre:</strong> {liquidacion?.contrato?.empleado?.apellido}, {liquidacion?.contrato?.empleado?.nombre}</div>
-                            <div><strong>Documento:</strong> {liquidacion?.contrato?.empleado?.numeroDocumento}</div>
+                            <div><strong>Nombre:</strong> {liquidacion?.contrato?.empleado?.usuario?.apellido}, {liquidacion?.contrato?.empleado?.usuario?.nombre}</div>
+                            <div><strong>Documento:</strong> {liquidacion?.contrato?.empleado?.usuario?.numeroDocumento}</div>
                             <div><strong>Período:</strong> {formatDateOnly(liquidacion?.fechaInicio)} - {formatDateOnly(liquidacion?.fechaFin)}</div>
                         </div>
                     </div>

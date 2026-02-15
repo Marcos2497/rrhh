@@ -1,4 +1,4 @@
-const { EspacioTrabajo, Empleado } = require('../models');
+const { EspacioTrabajo, Usuario, ConceptoSalarial, ParametroLaboral, Rol, Permiso, Empleado, Empresa, Contrato, RegistroSalud, Contacto, ContratoPuesto, Puesto, Departamento, Area, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Obtener todos los espacios de trabajo con filtros y paginación
@@ -20,7 +20,15 @@ const getAll = async (req, res) => {
             where.nombre = { [Op.like]: `%${nombre}%` };
         }
 
-        if (propietario) {
+        // --- Lógica de permisos ---
+        const usuarioId = req.session.usuarioId || req.session.empleadoId;
+        const esAdmin = req.session.esAdministrador;
+
+        // Si no es admin, solo mostrar sus propios espacios
+        if (!esAdmin) {
+            where.propietarioId = usuarioId;
+        } else if (propietario) {
+            // Si es admin y quiere filtrar por propietario específico
             where.propietarioId = propietario;
         }
 
@@ -30,7 +38,7 @@ const getAll = async (req, res) => {
             where,
             include: [
                 {
-                    model: Empleado,
+                    model: Usuario,
                     as: 'propietario',
                     attributes: ['id', 'nombre', 'apellido', 'email'],
                 },
@@ -60,7 +68,7 @@ const getById = async (req, res) => {
         const espacio = await EspacioTrabajo.findByPk(req.params.id, {
             include: [
                 {
-                    model: Empleado,
+                    model: Usuario,
                     as: 'propietario',
                     attributes: ['id', 'nombre', 'apellido', 'email'],
                 },
@@ -79,20 +87,61 @@ const getById = async (req, res) => {
 
 // Crear espacio de trabajo
 const create = async (req, res) => {
+    const t = await sequelize.transaction();
     try {
         // Asignar automáticamente el propietario como el usuario en sesión
+        // req.session ahora debe tener usuarioId (ajustar middleware auth)
+        const usuarioId = req.session.usuarioId || req.session.empleadoId; // Fallback temporal
+
         const espacioData = {
             ...req.body,
-            propietarioId: req.session.empleadoId,
+            propietarioId: usuarioId,
         };
 
-        const espacio = await EspacioTrabajo.create(espacioData);
+        const espacio = await EspacioTrabajo.create(espacioData, { transaction: t });
 
-        // Cargar el espacio con el propietario
+        // --- Generar Datos Obligatorios ---
+
+        // 1. Conceptos Salariales
+        const conceptosDefault = [
+            { nombre: 'Jubilación', tipo: 'deduccion', esPorcentaje: true, valor: 11, esObligatorio: true, espacioTrabajoId: espacio.id },
+            { nombre: 'Obra Social', tipo: 'deduccion', esPorcentaje: true, valor: 3, esObligatorio: true, espacioTrabajoId: espacio.id },
+            { nombre: 'PAMI', tipo: 'deduccion', esPorcentaje: true, valor: 3, esObligatorio: true, espacioTrabajoId: espacio.id },
+            { nombre: 'Cuota Sindical', tipo: 'deduccion', esPorcentaje: true, valor: 2.5, esObligatorio: true, espacioTrabajoId: espacio.id },
+        ];
+        await ConceptoSalarial.bulkCreate(conceptosDefault, { transaction: t });
+
+        // 2. Parámetros Laborales
+        await ParametroLaboral.create({
+            tipo: 'limite_ausencia_injustificada',
+            valor: '1',
+            descripcion: 'Límite de ausencias injustificadas permitidas por mes',
+            esObligatorio: true,
+            espacioTrabajoId: espacio.id
+        }, { transaction: t });
+
+        // 3. Rol de Administrador
+        const rolAdmin = await Rol.create({
+            nombre: 'Administrador',
+            descripcion: 'Rol con acceso completo a todas las funcionalidades del sistema',
+            esObligatorio: true,
+            espacioTrabajoId: espacio.id,
+            activo: true
+        }, { transaction: t });
+
+        // Asignar todos los permisos existentes al rol admin
+        const permisos = await Permiso.findAll({ transaction: t });
+        if (permisos.length > 0) {
+            await rolAdmin.setPermisos(permisos.map(p => p.id), { transaction: t });
+        }
+
+        await t.commit();
+
+        // Cargar el espacio con el propietario para devolver
         const espacioCompleto = await EspacioTrabajo.findByPk(espacio.id, {
             include: [
                 {
-                    model: Empleado,
+                    model: Usuario,
                     as: 'propietario',
                     attributes: ['id', 'nombre', 'apellido', 'email'],
                 },
@@ -101,6 +150,7 @@ const create = async (req, res) => {
 
         res.status(201).json(espacioCompleto);
     } catch (error) {
+        await t.rollback();
         if (error.name === 'SequelizeValidationError') {
             const messages = error.errors.map(e => e.message);
             return res.status(400).json({ error: messages.join(', ') });
@@ -118,7 +168,7 @@ const update = async (req, res) => {
             return res.status(404).json({ error: 'Espacio de trabajo no encontrado' });
         }
 
-        // No permitir cambiar el propietario
+        // No permitir cambiar el propietario por ahora
         const { propietarioId, ...updateData } = req.body;
 
         await espacio.update(updateData);
@@ -127,7 +177,7 @@ const update = async (req, res) => {
         const espacioActualizado = await EspacioTrabajo.findByPk(espacio.id, {
             include: [
                 {
-                    model: Empleado,
+                    model: Usuario,
                     as: 'propietario',
                     attributes: ['id', 'nombre', 'apellido', 'email'],
                 },
@@ -195,7 +245,7 @@ const reactivate = async (req, res) => {
         const espacioReactivado = await EspacioTrabajo.findByPk(espacio.id, {
             include: [
                 {
-                    model: Empleado,
+                    model: Usuario,
                     as: 'propietario',
                     attributes: ['id', 'nombre', 'apellido', 'email'],
                 },
@@ -208,6 +258,130 @@ const reactivate = async (req, res) => {
     }
 };
 
+/**
+ * Verificar si un empleado puede cambiar de espacio de trabajo
+ * No puede cambiar si tiene contratos, registros de salud o contactos (incluso inactivos)
+ */
+const canChangeEmpleadoWorkspace = async (req, res) => {
+    try {
+        const { empleadoId } = req.params;
+
+        // Verificar contratos (activos e inactivos)
+        const contratosCount = await Contrato.count({
+            where: { empleadoId }
+        });
+
+        if (contratosCount > 0) {
+            return res.json({
+                canChange: false,
+                reason: 'El empleado tiene contratos asociados'
+            });
+        }
+
+        // Verificar registros de salud (activos e inactivos)
+        const registrosSaludCount = await RegistroSalud.count({
+            where: { empleadoId }
+        });
+
+        if (registrosSaludCount > 0) {
+            return res.json({
+                canChange: false,
+                reason: 'El empleado tiene registros de salud asociados'
+            });
+        }
+
+        // Verificar contactos (activos e inactivos)
+        const contactosCount = await Contacto.count({
+            where: { empleadoId }
+        });
+
+        if (contactosCount > 0) {
+            return res.json({
+                canChange: false,
+                reason: 'El empleado tiene contactos asociados'
+            });
+        }
+
+        res.json({ canChange: true });
+    } catch (error) {
+        console.error('Error al verificar cambio de espacio de trabajo del empleado:', error);
+        res.status(500).json({ error: 'Error al verificar cambio de espacio de trabajo' });
+    }
+};
+
+/**
+ * Verificar si una empresa puede cambiar de espacio de trabajo
+ * No puede cambiar si tiene contratos asociados (incluso inactivos)
+ */
+const canChangeEmpresaWorkspace = async (req, res) => {
+    try {
+        const { empresaId } = req.params;
+
+        // Obtener todos los puestos de la empresa (a través de áreas y departamentos)
+        const puestos = await Puesto.findAll({
+            include: [{
+                model: Departamento,
+                as: 'departamento',
+                required: true,
+                include: [{
+                    model: Area,
+                    as: 'area',
+                    required: true,
+                    where: { empresaId }
+                }]
+            }]
+        });
+
+        const puestoIds = puestos.map(p => p.id);
+
+        if (puestoIds.length > 0) {
+            // Verificar si hay contratos asociados a estos puestos (activos e inactivos)
+            const contratosCount = await ContratoPuesto.count({
+                where: { puestoId: puestoIds }
+            });
+
+            if (contratosCount > 0) {
+                return res.json({
+                    canChange: false,
+                    reason: 'La empresa tiene contratos asociados a sus puestos'
+                });
+            }
+        }
+
+        res.json({ canChange: true });
+    } catch (error) {
+        console.error('Error al verificar cambio de espacio de trabajo de la empresa:', error);
+        res.status(500).json({ error: 'Error al verificar cambio de espacio de trabajo' });
+    }
+};
+
+/**
+ * Verificar si un rol puede cambiar de espacio de trabajo
+ * No puede cambiar si tiene contratos asociados (incluso inactivos)
+ */
+const canChangeRolWorkspace = async (req, res) => {
+    try {
+        const { rolId } = req.params;
+
+        // Verificar contratos asociados al rol (activos e inactivos)
+        const contratosCount = await Contrato.count({
+            where: { rolId }
+        });
+
+        if (contratosCount > 0) {
+            return res.json({
+                canChange: false,
+                reason: 'El rol tiene contratos asociados'
+            });
+        }
+
+        res.json({ canChange: true });
+    } catch (error) {
+        console.error('Error al verificar cambio de espacio de trabajo del rol:', error);
+        res.status(500).json({ error: 'Error al verificar cambio de espacio de trabajo' });
+    }
+};
+
 module.exports = {
     getAll,
     getById,
@@ -216,4 +390,7 @@ module.exports = {
     deleteEspacio,
     deleteBulk,
     reactivate,
+    canChangeEmpleadoWorkspace,
+    canChangeEmpresaWorkspace,
+    canChangeRolWorkspace,
 };

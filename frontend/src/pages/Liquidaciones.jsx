@@ -309,9 +309,9 @@ const Liquidaciones = () => {
                                         <tr key={item.id} className={`${selectedIds.has(item.id) ? 'row-selected' : ''} ${!item.activo ? 'row-inactive' : ''}`}>
                                             <td><input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => handleSelectOne(item.id)} /></td>
                                             <td>
-                                                <strong>{item.contrato?.empleado?.apellido}, {item.contrato?.empleado?.nombre}</strong>
+                                                <strong>{item.contrato?.empleado?.usuario?.apellido}, {item.contrato?.empleado?.usuario?.nombre}</strong>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                                    {item.contrato?.empleado?.numeroDocumento}
+                                                    {item.contrato?.empleado?.usuario?.numeroDocumento}
                                                 </div>
                                             </td>
                                             {visibleColumns.periodo && (

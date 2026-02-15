@@ -9,6 +9,15 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
         primaryKey: true,
         autoIncrement: true,
     },
+    espacioTrabajoId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'espacios_trabajo',
+            key: 'id',
+        },
+        onDelete: 'CASCADE',
+    },
     nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -41,6 +50,11 @@ const ConceptoSalarial = sequelize.define('ConceptoSalarial', {
             isDecimal: { msg: 'El valor debe ser un número válido' },
             min: { args: [0], msg: 'El valor no puede ser negativo' },
         },
+    },
+    esObligatorio: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
     },
     activo: {
         type: DataTypes.BOOLEAN,

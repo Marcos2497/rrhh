@@ -1,5 +1,6 @@
-const { Empleado } = require('../models');
+const { Usuario, Empleado } = require('../models');
 const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
 
 /**
  * Login de usuario
@@ -15,35 +16,64 @@ const login = async (req, res) => {
             });
         }
 
-        // Buscar empleado por email
-        const empleado = await Empleado.findOne({
+        // Buscar usuario por email
+        const usuario = await Usuario.findOne({
             where: { email, activo: true }
         });
 
-        if (!empleado) {
+        if (!usuario) {
             return res.status(401).json({
                 error: 'Credenciales inválidas'
             });
         }
 
         // Verificar contraseña
-        const contrasenaValida = await empleado.verificarContrasena(contrasena);
-        if (!contrasenaValida) {
+        const isMatch = await bcrypt.compare(contrasena, usuario.contrasena);
+        if (!isMatch) {
             return res.status(401).json({
                 error: 'Credenciales inválidas'
             });
         }
 
         // Crear sesión
-        req.session.empleadoId = empleado.id;
-        req.session.esAdministrador = empleado.esAdministrador;
+        req.session.usuarioId = usuario.id;
+        req.session.empleadoId = usuario.id; // Retrocompatibilidad temporal: ID de usuario
+        req.session.esAdministrador = usuario.esAdministrador;
 
         // Si "recordarme" está activo, extender duración de la cookie
         if (recordarme) {
             req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 días
         }
 
-        // Guardar sesión y retornar datos del usuario (sin contraseña)
+        // Buscar un empleo asociado para mezclar datos (compatibilidad frontend)
+        const empleoAsociado = await Empleado.findOne({
+            where: {
+                usuarioId: usuario.id
+                // idealmente filtrar por espacioTrabajoId si lo tenemos
+            }
+        });
+
+        const userData = {
+            id: usuario.id,
+            nombre: usuario.nombre,
+            apellido: usuario.apellido,
+            email: usuario.email,
+            tipoDocumento: usuario.tipoDocumento,
+            numeroDocumento: usuario.numeroDocumento,
+            cuil: usuario.cuil,
+            esAdministrador: usuario.esAdministrador,
+            esEmpleado: usuario.esEmpleado,
+            activo: usuario.activo,
+            createdAt: usuario.createdAt,
+            updatedAt: usuario.updatedAt,
+            // Datos de empleo si existen
+            ...(empleoAsociado ? {
+                empleadoId: empleoAsociado.id,
+                espacioTrabajoId: empleoAsociado.espacioTrabajoId,
+            } : {})
+        };
+
+        // Guardar sesión y retornar datos
         req.session.save((err) => {
             if (err) {
                 console.error('Error al guardar sesión:', err);
@@ -52,35 +82,7 @@ const login = async (req, res) => {
 
             res.json({
                 message: 'Inicio de sesión exitoso',
-                usuario: {
-                    id: empleado.id,
-                    nombre: empleado.nombre,
-                    apellido: empleado.apellido,
-                    email: empleado.email,
-                    telefono: empleado.telefono,
-                    genero: empleado.genero,
-                    esAdministrador: empleado.esAdministrador,
-                    creadoPorRrhh: empleado.creadoPorRrhh,
-                    activo: empleado.activo,
-                    // Datos personales
-                    tipoDocumento: empleado.tipoDocumento,
-                    numeroDocumento: empleado.numeroDocumento,
-                    cuil: empleado.cuil,
-                    fechaNacimiento: empleado.fechaNacimiento,
-                    nacionalidadId: empleado.nacionalidadId,
-                    estadoCivil: empleado.estadoCivil,
-                    // Dirección
-                    calle: empleado.calle,
-                    numero: empleado.numero,
-                    piso: empleado.piso,
-                    departamento: empleado.departamento,
-                    codigoPostal: empleado.codigoPostal,
-                    provinciaId: empleado.provinciaId,
-                    ciudadId: empleado.ciudadId,
-                    // Timestamps
-                    createdAt: empleado.createdAt,
-                    updatedAt: empleado.updatedAt,
-                }
+                usuario: userData
             });
         });
 
@@ -105,7 +107,7 @@ const logout = (req, res) => {
 };
 
 /**
- * Registro público de usuario (creadoPorRrhh = false)
+ * Registro público de usuario (esEmpleado = false)
  */
 const register = [
     // Validaciones
@@ -115,6 +117,8 @@ const register = [
         .matches(/[A-Z]/).withMessage('La contraseña debe contener al menos una mayúscula')
         .matches(/[0-9]/).withMessage('La contraseña debe contener al menos un número')
         .matches(/[@$!%*?&#]/).withMessage('La contraseña debe contener al menos un carácter especial'),
+    body('nombre').notEmpty().withMessage('El nombre es requerido'),
+    body('apellido').notEmpty().withMessage('El apellido es requerido'),
 
     async (req, res) => {
         try {
@@ -126,18 +130,33 @@ const register = [
                 });
             }
 
-            const empleadoData = {
-                ...req.body,
-                creadoPorRrhh: false, // Registro público siempre es false
-                esAdministrador: false, // Registro público nunca es admin
+            const usuarioData = {
+                nombre: req.body.nombre,
+                apellido: req.body.apellido,
+                email: req.body.email,
+                contrasena: req.body.contrasena,
+                esEmpleado: false, // Registro público
+                esAdministrador: false,
                 activo: true,
+                // Campos obligatorios nuevos - Valores por defecto temporales para evitar bloqueo en registro público
+                tipoDocumento: req.body.tipoDocumento || 'cedula',
+                numeroDocumento: req.body.numeroDocumento || '00000000',
+                cuil: req.body.cuil,
+                fechaNacimiento: req.body.fechaNacimiento || '2000-01-01',
+                nacionalidadId: req.body.nacionalidadId || 1,
+                genero: req.body.genero || 'otro',
+                estadoCivil: req.body.estadoCivil || 'soltero',
+                calle: req.body.calle || 'Sin especificar',
+                numero: req.body.numero || '0',
+                provinciaId: req.body.provinciaId || 1, // Asumiendo ID 1 existe
             };
 
-            // Crear empleado
-            const nuevoEmpleado = await Empleado.create(empleadoData);
+            // Crear usuario
+            const nuevoUsuario = await Usuario.create(usuarioData);
 
             // Auto-login después del registro
-            req.session.empleadoId = nuevoEmpleado.id;
+            req.session.usuarioId = nuevoUsuario.id;
+            req.session.empleadoId = nuevoUsuario.id; // Retrocompatibilidad
             req.session.esAdministrador = false;
 
             req.session.save((err) => {
@@ -149,33 +168,15 @@ const register = [
                 res.status(201).json({
                     message: 'Registro exitoso',
                     usuario: {
-                        id: nuevoEmpleado.id,
-                        nombre: nuevoEmpleado.nombre,
-                        apellido: nuevoEmpleado.apellido,
-                        email: nuevoEmpleado.email,
-                        telefono: nuevoEmpleado.telefono,
-                        genero: nuevoEmpleado.genero,
+                        id: nuevoUsuario.id,
+                        nombre: nuevoUsuario.nombre,
+                        apellido: nuevoUsuario.apellido,
+                        email: nuevoUsuario.email,
                         esAdministrador: false,
-                        creadoPorRrhh: false,
+                        esEmpleado: false,
                         activo: true,
-                        // Datos personales
-                        tipoDocumento: nuevoEmpleado.tipoDocumento,
-                        numeroDocumento: nuevoEmpleado.numeroDocumento,
-                        cuil: nuevoEmpleado.cuil,
-                        fechaNacimiento: nuevoEmpleado.fechaNacimiento,
-                        nacionalidadId: nuevoEmpleado.nacionalidadId,
-                        estadoCivil: nuevoEmpleado.estadoCivil,
-                        // Dirección
-                        calle: nuevoEmpleado.calle,
-                        numero: nuevoEmpleado.numero,
-                        piso: nuevoEmpleado.piso,
-                        departamento: nuevoEmpleado.departamento,
-                        codigoPostal: nuevoEmpleado.codigoPostal,
-                        provinciaId: nuevoEmpleado.provinciaId,
-                        ciudadId: nuevoEmpleado.ciudadId,
-                        // Timestamps
-                        createdAt: nuevoEmpleado.createdAt,
-                        updatedAt: nuevoEmpleado.updatedAt,
+                        createdAt: nuevoUsuario.createdAt,
+                        updatedAt: nuevoUsuario.updatedAt,
                     }
                 });
             });
@@ -183,14 +184,12 @@ const register = [
         } catch (error) {
             console.error('Error en registro:', error);
 
-            // Manejar error de email duplicado
             if (error.name === 'SequelizeUniqueConstraintError') {
                 return res.status(400).json({
                     error: 'El email ya está registrado'
                 });
             }
 
-            // Manejar errores de validación
             if (error.name === 'SequelizeValidationError') {
                 return res.status(400).json({
                     error: error.errors[0].message
@@ -207,46 +206,38 @@ const register = [
  */
 const getCurrentUser = async (req, res) => {
     try {
-        const empleado = await Empleado.findByPk(req.session.empleadoId, {
-            attributes: { exclude: ['contrasena'] }
+        const usuarioId = req.session.usuarioId || req.session.empleadoId;
+        const usuario = await Usuario.findByPk(usuarioId, {
+            attributes: { exclude: ['contrasena'] },
+            include: [{
+                model: Empleado,
+                as: 'empleos',
+                required: false,
+                limit: 1
+            }]
         });
 
-        if (!empleado) {
+        if (!usuario) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        // Formatear respuesta con datos completos
-        const userData = {
-            id: empleado.id,
-            nombre: empleado.nombre,
-            apellido: empleado.apellido,
-            email: empleado.email,
-            telefono: empleado.telefono,
-            genero: empleado.genero,
-            esAdministrador: empleado.esAdministrador,
-            creadoPorRrhh: empleado.creadoPorRrhh,
-            activo: empleado.activo,
-            // Datos personales
-            tipoDocumento: empleado.tipoDocumento,
-            numeroDocumento: empleado.numeroDocumento,
-            cuil: empleado.cuil,
-            fechaNacimiento: empleado.fechaNacimiento,
-            nacionalidadId: empleado.nacionalidadId,
-            estadoCivil: empleado.estadoCivil,
-            // Dirección
-            calle: empleado.calle,
-            numero: empleado.numero,
-            piso: empleado.piso,
-            departamento: empleado.departamento,
-            codigoPostal: empleado.codigoPostal,
-            provinciaId: empleado.provinciaId,
-            ciudadId: empleado.ciudadId,
-            // Timestamps
-            createdAt: empleado.createdAt,
-            updatedAt: empleado.updatedAt,
-        };
+        const plainUser = usuario.get({ plain: true });
+        // Aplanar si tiene empleo
+        let result = { ...plainUser };
+        if (plainUser.empleos && plainUser.empleos.length > 0) {
+            const emp = plainUser.empleos[0];
+            result = {
+                ...result,
+                empleadoId: emp.id,
+                tipoDocumento: emp.tipoDocumento,
+                numeroDocumento: emp.numeroDocumento,
+                cuil: emp.cuil,
+                espacioTrabajoId: emp.espacioTrabajoId
+            };
+            delete result.empleos;
+        }
 
-        res.json(userData);
+        res.json(result);
 
     } catch (error) {
         console.error('Error al obtener usuario:', error);
@@ -255,7 +246,7 @@ const getCurrentUser = async (req, res) => {
 };
 
 /**
- * Cambiar contraseña (solo RRHH / admin puede cambiar contraseñas de otros)
+ * Cambiar contraseña
  */
 const updatePassword = [
     body('nuevaContrasena')
@@ -273,44 +264,42 @@ const updatePassword = [
                 });
             }
 
-            const { empleadoId, contrasenaActual, nuevaContrasena } = req.body;
-            const empleadoIdSesion = req.session.empleadoId;
+            const { usuarioId, contrasenaActual, nuevaContrasena } = req.body;
+            const usuarioIdSesion = req.session.usuarioId || req.session.empleadoId;
             const esAdmin = req.session.esAdministrador;
 
-            // Determinar qué empleado actualizar
-            const targetEmpleadoId = empleadoId || empleadoIdSesion;
+            const targetId = usuarioId || usuarioIdSesion;
 
             // Verificar permisos
-            if (targetEmpleadoId !== empleadoIdSesion && !esAdmin) {
+            if (targetId !== usuarioIdSesion && !esAdmin) {
                 return res.status(403).json({
                     error: 'No tiene permisos para cambiar esta contraseña'
                 });
             }
 
-            const empleado = await Empleado.findByPk(targetEmpleadoId);
-            if (!empleado) {
-                return res.status(404).json({ error: 'Empleado no encontrado' });
+            const usuario = await Usuario.findByPk(targetId);
+            if (!usuario) {
+                return res.status(404).json({ error: 'Usuario no encontrado' });
             }
 
             // Si no es admin y está cambiando su propia contraseña, verificar la actual
-            if (!esAdmin && targetEmpleadoId === empleadoIdSesion) {
+            if (!esAdmin && targetId === usuarioIdSesion) {
                 if (!contrasenaActual) {
                     return res.status(400).json({
                         error: 'Debe proporcionar la contraseña actual'
                     });
                 }
 
-                const contrasenaValida = await empleado.verificarContrasena(contrasenaActual);
-                if (!contrasenaValida) {
+                const isMatch = await bcrypt.compare(contrasenaActual, usuario.contrasena);
+                if (!isMatch) {
                     return res.status(401).json({
                         error: 'Contraseña actual incorrecta'
                     });
                 }
             }
 
-            // Actualizar contraseña (el hook hasheará automáticamente)
-            empleado.contrasena = nuevaContrasena;
-            await empleado.save();
+            usuario.contrasena = nuevaContrasena;
+            await usuario.save(); // Hook hashea
 
             res.json({ message: 'Contraseña actualizada exitosamente' });
 

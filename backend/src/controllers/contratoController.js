@@ -1,4 +1,4 @@
-const { Contrato, Empleado, Puesto, Departamento, Area, Empresa, ContratoPuesto } = require('../models');
+const { Contrato, Empleado, Puesto, Departamento, Area, Empresa, ContratoPuesto, Rol, Usuario } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -7,6 +7,16 @@ const includeRelations = [
     {
         model: Empleado,
         as: 'empleado',
+        include: [{
+            model: Usuario,
+            as: 'usuario',
+            attributes: ['id', 'nombre', 'apellido', 'numeroDocumento']
+        }]
+    },
+    {
+        model: Rol,
+        as: 'rol',
+        required: false
     },
     {
         model: Puesto,
@@ -70,9 +80,9 @@ const getAll = async (req, res) => {
             const searchLower = search.toLowerCase();
             result.rows = result.rows.filter(contrato => {
                 const empleado = contrato.empleado;
-                if (!empleado) return false;
-                const fullName = `${empleado.nombre} ${empleado.apellido}`.toLowerCase();
-                const documento = empleado.numeroDocumento?.toLowerCase() || '';
+                if (!empleado || !empleado.usuario) return false;
+                const fullName = `${empleado.usuario.nombre} ${empleado.usuario.apellido}`.toLowerCase();
+                const documento = empleado.usuario.numeroDocumento?.toLowerCase() || '';
                 return fullName.includes(searchLower) || documento.includes(searchLower);
             });
         }

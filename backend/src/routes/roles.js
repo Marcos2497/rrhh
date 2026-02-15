@@ -4,19 +4,19 @@ const rolController = require('../controllers/rolController');
 const { isAuthenticated, isAdmin } = require('../middlewares/authMiddleware');
 
 
-// Todas las rutas requieren autenticación y permisos de administrador
+// Todas las rutas requieren autenticación
 router.use(isAuthenticated);
-router.use(isAdmin);
 
-
-// Rutas de roles
+// Rutas de lectura (accesibles para usuarios autenticados)
 router.get('/', rolController.getAll);
-router.delete('/bulk', rolController.deleteBulk);
 router.get('/:id', rolController.getById);
-router.post('/', rolController.create);
-router.put('/:id', rolController.update);
-router.delete('/:id', rolController.deleteRol);
-router.patch('/:id/reactivate', rolController.reactivate);
+
+// Rutas de escritura (requieren permisos de administrador)
+router.delete('/bulk', isAdmin, rolController.deleteBulk);
+router.post('/', isAdmin, rolController.create);
+router.put('/:id', isAdmin, rolController.update);
+router.delete('/:id', isAdmin, rolController.deleteRol);
+router.patch('/:id/reactivate', isAdmin, rolController.reactivate);
 
 
 module.exports = router;

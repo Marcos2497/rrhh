@@ -26,7 +26,7 @@ const EspacioTrabajo = sequelize.define('EspacioTrabajo', {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-            model: 'empleados',
+            model: 'usuarios',
             key: 'id',
         },
         validate: {

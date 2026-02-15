@@ -16,6 +16,12 @@ const getAll = async (req, res) => {
             where.activo = activo === 'true' || activo === true || activo === '1';
         }
 
+        // Filtrar por espacio de trabajo
+        const { espacioTrabajoId } = req.query;
+        if (espacioTrabajoId) {
+            where.espacioTrabajoId = parseInt(espacioTrabajoId);
+        }
+
         const conceptos = await ConceptoSalarial.findAll({
             where,
             order: [['nombre', 'ASC']],
@@ -50,11 +56,11 @@ const getById = async (req, res) => {
 // Crear concepto salarial
 const create = async (req, res) => {
     try {
-        const { nombre, tipo, esPorcentaje, valor } = req.body;
+        const { nombre, tipo, esPorcentaje, valor, espacioTrabajoId } = req.body;
 
         // Validar campos requeridos
-        if (!nombre || !tipo || valor === undefined) {
-            return res.status(400).json({ error: 'Nombre, tipo y valor son requeridos' });
+        if (!nombre || !tipo || valor === undefined || !espacioTrabajoId) {
+            return res.status(400).json({ error: 'Nombre, tipo, valor y espacioTrabajoId son requeridos' });
         }
 
         const concepto = await ConceptoSalarial.create({
@@ -62,6 +68,7 @@ const create = async (req, res) => {
             tipo,
             esPorcentaje: esPorcentaje || false,
             valor,
+            espacioTrabajoId: parseInt(espacioTrabajoId),
             activo: true,
         });
 
@@ -76,7 +83,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
     try {
         const { id } = req.params;
-        const { nombre, tipo, esPorcentaje, valor, activo } = req.body;
+        const { nombre, tipo, esPorcentaje, valor, activo, espacioTrabajoId } = req.body;
 
         const concepto = await ConceptoSalarial.findByPk(id);
 
@@ -89,6 +96,7 @@ const update = async (req, res) => {
         if (esPorcentaje !== undefined) concepto.esPorcentaje = esPorcentaje;
         if (valor !== undefined) concepto.valor = valor;
         if (activo !== undefined) concepto.activo = activo;
+        if (espacioTrabajoId !== undefined) concepto.espacioTrabajoId = parseInt(espacioTrabajoId);
 
         await concepto.save();
 

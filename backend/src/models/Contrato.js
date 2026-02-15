@@ -39,6 +39,14 @@ const Contrato = sequelize.define('Contrato', {
             notEmpty: { msg: 'El empleado es requerido' },
         },
     },
+    rolId: {
+        type: DataTypes.INTEGER,
+        allowNull: true, // Opcional, puede no tener rol de sistema asociado o ser default
+        references: {
+            model: 'roles', // nombre de la tabla
+            key: 'id',
+        },
+    },
     tipoContrato: {
         type: DataTypes.ENUM(...TIPOS_CONTRATO),
         allowNull: false,

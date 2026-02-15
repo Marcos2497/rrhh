@@ -7,19 +7,47 @@ const ParametroLaboral = sequelize.define('ParametroLaboral', {
         primaryKey: true,
         autoIncrement: true,
     },
-    limiteAusenciaInjustificada: {
+    espacioTrabajoId: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 1,
-        validate: {
-            isInt: { msg: 'El límite de ausencia debe ser un número entero' },
-            min: { args: [0], msg: 'El límite de ausencia no puede ser negativo' },
-            max: { args: [10], msg: 'El límite de ausencia no puede superar 10' },
+        references: {
+            model: 'espacios_trabajo',
+            key: 'id',
         },
+        onDelete: 'CASCADE',
+    },
+    tipo: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'El tipo de parámetro es requerido' },
+        },
+    },
+    valor: {
+        type: DataTypes.STRING(255), // Guardamos como string para flexibilidad
+        allowNull: false,
+        validate: {
+            notEmpty: { msg: 'El valor es requerido' },
+        },
+    },
+    descripcion: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+    },
+    esObligatorio: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
     },
 }, {
     tableName: 'parametros_laborales',
     timestamps: true,
+    indexes: [
+        {
+            unique: true,
+            fields: ['espacioTrabajoId', 'tipo'], // Evitar duplicados del mismo tipo en un espacio
+        },
+    ]
 });
 
 module.exports = ParametroLaboral;

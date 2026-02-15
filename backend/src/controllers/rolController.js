@@ -1,4 +1,4 @@
-const { Rol, Permiso, RolPermiso } = require('../models');
+const { Rol, Permiso, RolPermiso, EspacioTrabajo } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -33,6 +33,11 @@ const getAll = async (req, res) => {
                     as: 'permisos',
                     through: { attributes: [] },
                     attributes: ['id', 'modulo', 'accion', 'descripcion'],
+                },
+                {
+                    model: EspacioTrabajo,
+                    as: 'espacioTrabajo',
+                    attributes: ['id', 'nombre'],
                 },
             ],
             limit: parseInt(limit),

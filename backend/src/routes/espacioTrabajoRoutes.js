@@ -3,6 +3,11 @@ const router = express.Router();
 const espacioTrabajoController = require('../controllers/espacioTrabajoController');
 const { isAuthenticated, isAdmin } = require('../middlewares/authMiddleware');
 
+// Rutas de validación
+router.get('/validation/empleado/:empleadoId/can-change', isAuthenticated, espacioTrabajoController.canChangeEmpleadoWorkspace);
+router.get('/validation/empresa/:empresaId/can-change', isAuthenticated, espacioTrabajoController.canChangeEmpresaWorkspace);
+router.get('/validation/rol/:rolId/can-change', isAuthenticated, espacioTrabajoController.canChangeRolWorkspace);
+
 // Todas las rutas requieren autenticación
 router.get('/', isAuthenticated, espacioTrabajoController.getAll);
 router.delete('/bulk', isAuthenticated, espacioTrabajoController.deleteBulk);

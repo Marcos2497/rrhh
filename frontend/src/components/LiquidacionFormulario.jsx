@@ -78,7 +78,7 @@ const LiquidacionFormulario = ({ liquidacion, onClose, onSuccess }) => {
                         <div style={{ marginBottom: '2rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
-                                    <strong>Empleado:</strong> {liquidacion?.contrato?.empleado?.apellido}, {liquidacion?.contrato?.empleado?.nombre}
+                                    <strong>Empleado:</strong> {liquidacion?.contrato?.empleado?.usuario?.apellido}, {liquidacion?.contrato?.empleado?.usuario?.nombre}
                                 </div>
                                 <div>
                                     <strong>Período:</strong> {formatDateOnly(liquidacion?.fechaInicio)} - {formatDateOnly(liquidacion?.fechaFin)}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import StepTracker from './StepTracker';
-import { createEmpleado, updateEmpleado } from '../services/api';
+import EspacioTrabajoSelector from './EspacioTrabajoSelector';
+import { createEmpleado, updateEmpleado, canChangeEmpleadoWorkspace } from '../services/api';
 import ubicaciones from '../data/ubicaciones.json';
 
 const GENEROS = [
@@ -44,6 +45,11 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess, isPublic
     const [showTooltipEdad, setShowTooltipEdad] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    // Espacio de Trabajo
+    const [espacioTrabajoId, setEspacioTrabajoId] = useState('');
+    const [canChangeWorkspace, setCanChangeWorkspace] = useState(true);
+    const [workspaceChangeMessage, setWorkspaceChangeMessage] = useState('');
 
     // Datos externos
     const [nacionalidades, setNacionalidades] = useState([]);
@@ -117,8 +123,28 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess, isPublic
                 ciudadId: String(empleadoToEdit.ciudadId || ''),
                 ciudadNombre: empleadoToEdit.ciudadNombre || '',
             });
+
+            // Cargar espacio de trabajo
+            setEspacioTrabajoId(String(empleadoToEdit.espacioTrabajoId || ''));
+
+            // Verificar si puede cambiar de espacio
+            if (empleadoToEdit.id) {
+                checkCanChangeWorkspace(empleadoToEdit.id);
+            }
         }
     }, [empleadoToEdit]);
+
+    const checkCanChangeWorkspace = async (empleadoId) => {
+        try {
+            const result = await canChangeEmpleadoWorkspace(empleadoId);
+            setCanChangeWorkspace(result.canChange);
+            setWorkspaceChangeMessage(result.reason || '');
+        } catch (err) {
+            console.error('Error al verificar cambio de espacio:', err);
+            // En caso de error, permitir el cambio por defecto
+            setCanChangeWorkspace(true);
+        }
+    };
 
     const loadInitialData = () => {
         setNacionalidades(ubicaciones.nacionalidades);
@@ -300,6 +326,11 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess, isPublic
                     errors.confirmarContrasena = 'Las contraseñas no coinciden';
                 }
             }
+
+            // Validación de espacio de trabajo (no requerido en registro público)
+            if (!isPublicRegistration && !espacioTrabajoId) {
+                errors.espacioTrabajoId = 'El espacio de trabajo es requerido';
+            }
         }
 
         if (currentStep === 2) {
@@ -343,6 +374,7 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess, isPublic
             const data = {
                 ...info,
                 ...direccion,
+                espacioTrabajoId: espacioTrabajoId ? parseInt(espacioTrabajoId) : undefined,
             };
 
             if (isEditMode) {
@@ -698,6 +730,20 @@ const EmpleadoWizard = ({ empleado: empleadoToEdit, onClose, onSuccess, isPublic
                     <FieldError message={touched.confirmarContrasena && fieldErrors.confirmarContrasena} />
                 </div>
             </div>
+
+            {/* Espacio de Trabajo */}
+            {!isPublicRegistration && (
+                <EspacioTrabajoSelector
+                    value={espacioTrabajoId}
+                    onChange={(e) => setEspacioTrabajoId(e.target.value)}
+                    onBlur={() => handleBlur('espacioTrabajoId')}
+                    canChange={!isEditMode || canChangeWorkspace}
+                    changeRestrictionMessage={workspaceChangeMessage}
+                    touched={touched.espacioTrabajoId}
+                    error={fieldErrors.espacioTrabajoId}
+                    disabled={isPublicRegistration}
+                />
+            )}
         </div>
     );
 

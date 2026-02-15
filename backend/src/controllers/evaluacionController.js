@@ -1,4 +1,4 @@
-const { Evaluacion, Contrato, Empleado, Puesto, Empresa, Departamento, Area } = require('../models');
+const { Evaluacion, Contrato, Empleado, Puesto, Empresa, Departamento, Area, Usuario } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -10,7 +10,11 @@ const includeContratoDetalle = (alias) => ({
         {
             model: Empleado,
             as: 'empleado',
-            attributes: ['id', 'nombre', 'apellido', 'numeroDocumento']
+            include: [{
+                model: Usuario,
+                as: 'usuario',
+                attributes: ['nombre', 'apellido', 'numeroDocumento']
+            }]
         },
         {
             model: Puesto,

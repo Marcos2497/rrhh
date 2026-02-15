@@ -157,7 +157,7 @@ const Navbar = () => {
                     empleado={user}
                     onClose={() => setShowProfile(false)}
                     onEdit={handleEditProfile}
-                    hideEditButton={!user.esAdministrador && user.creadoPorRrhh}
+                    hideEditButton={!user.esAdministrador && user.esEmpleado}
                 />
             )}
 

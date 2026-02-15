@@ -7,7 +7,8 @@ import {
     getEmpleados,
     getEmpresas,
     getEmpresaById,
-    getPuestosConContrato
+    getPuestosConContrato,
+    getRoles
 } from '../services/api';
 import { validarDiaHabil } from '../utils/diasHabiles';
 
@@ -137,6 +138,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
     // Data
     const [empleados, setEmpleados] = useState([]);
     const [empresas, setEmpresas] = useState([]);
+    const [roles, setRoles] = useState([]); // Roles de sistema
     const [puestosDisponibles, setPuestosDisponibles] = useState([]);
     const [puestosConContrato, setPuestosConContrato] = useState(new Map()); // Map<puestoId, Map<empleadoId, empleadoName>>
 
@@ -155,6 +157,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
         horario: '',
         salario: '',
         compensacion: '',
+        rolId: '',
     });
 
     const steps = [
@@ -213,18 +216,21 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 horario: contratoToEdit.horario || '',
                 salario: contratoToEdit.salario?.toString() || '',
                 compensacion: contratoToEdit.compensacion || '',
+                rolId: contratoToEdit.rolId || '',
             });
         }
     }, [contratoToEdit]);
 
     const loadInitialData = async () => {
         try {
-            const [empleadosRes, empresasRes] = await Promise.all([
+            const [empleadosRes, empresasRes, rolesRes] = await Promise.all([
                 getEmpleados({ limit: 500, activo: 'true' }),
                 getEmpresas({ limit: 100, activo: 'true' }),
+                getRoles({ limit: 100, activo: 'true' })
             ]);
             setEmpleados(empleadosRes.data || []);
             setEmpresas(empresasRes.data || []);
+            setRoles(rolesRes.roles || []);
         } catch (err) {
             console.error('Error loading data:', err);
         }
@@ -374,6 +380,11 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
             if (formData.compensacion && formData.compensacion.length > 500) {
                 errors.compensacion = 'La compensación no puede exceder 500 caracteres';
             }
+
+            // Validación de rol
+            if (!formData.rolId) {
+                errors.rolId = 'El rol es requerido';
+            }
         }
 
         // Preservar solo los errores de días hábiles de campos de fecha
@@ -459,6 +470,7 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                 horario: formData.horario,
                 salario: parseFloat(formData.salario),
                 compensacion: formData.compensacion || null,
+                rolId: formData.rolId || null,
             };
 
             if (isEditMode) {
@@ -749,6 +761,36 @@ const ContratoWizard = ({ contrato: contratoToEdit, onClose, onSuccess, empleado
                     />
                     <FieldError message={touched.compensacion && fieldErrors.compensacion} />
                 </div>
+            </div>
+
+            {/* Rol de Sistema */}
+            <div className="form-group">
+                <label className="form-label">Rol en la Empresa *</label>
+                <select
+                    name="rolId"
+                    className={`form-input ${touched.rolId && fieldErrors.rolId ? 'input-error' : ''}`}
+                    value={formData.rolId}
+                    onChange={handleChange}
+                    onBlur={() => handleBlur('rolId')}
+                >
+                    <option value="">Seleccionar rol</option>
+                    {Object.entries(roles.reduce((acc, rol) => {
+                        const wsName = rol.espacioTrabajo?.nombre || 'General';
+                        if (!acc[wsName]) acc[wsName] = [];
+                        acc[wsName].push(rol);
+                        return acc;
+                    }, {})).map(([wsName, rolesGroup]) => (
+                        <optgroup key={wsName} label={wsName}>
+                            {rolesGroup.map(rol => (
+                                <option key={rol.id} value={rol.id}>{rol.nombre}</option>
+                            ))}
+                        </optgroup>
+                    ))}
+                </select>
+                <FieldError message={touched.rolId && fieldErrors.rolId} />
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                    Asigna permisos de sistema al usuario mientras dure el contrato.
+                </p>
             </div>
         </div>
     );
