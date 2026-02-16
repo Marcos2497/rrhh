@@ -6,6 +6,7 @@ import PublicRoute from './components/PublicRoute';
 import NonEmployeeRoute from './components/NonEmployeeRoute';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Empleados from './pages/Empleados';
@@ -46,7 +47,10 @@ function App() {
     return (
         <AuthProvider>
             <Routes>
-                {/* Rutas públicas - redirigen a /empleados si ya está autenticado */}
+                {/* Ruta pública - Landing Page */}
+                <Route path="/" element={<LandingPage />} />
+
+                {/* Rutas públicas - redirigen a /dashboard si ya está autenticado */}
                 <Route path="/login" element={
                     <PublicRoute>
                         <Login />
@@ -60,7 +64,6 @@ function App() {
 
                 {/* Rutas protegidas */}
                 <Route element={<ProtectedRoute />}>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={
                         <ProtectedLayout sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}>
                             <Dashboard />
